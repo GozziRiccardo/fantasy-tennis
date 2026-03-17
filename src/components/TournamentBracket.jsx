@@ -12,6 +12,7 @@ const USER_COLORS = [
 ]
 
 const ROUND_LABELS_IN_ORDER = [
+  'Primo turno',
   'Sessantaquattresimi',
   'Trentaduesimi',
   'Ottavi di finale',
@@ -23,6 +24,7 @@ const ROUND_LABELS_IN_ORDER = [
 function normalizeRoundName(roundName) {
   const name = String(roundName ?? '').toLowerCase()
   if (!name) return null
+  if (name.includes('1/128') || name.includes('128th')) return 'Primo turno'
   if (name.includes('1/64') || name.includes('64th')) return 'Sessantaquattresimi'
   if (name.includes('1/32') || name.includes('32nd')) return 'Trentaduesimi'
   if (name.includes('1/16') || name.includes('16th')) return 'Ottavi di finale'
@@ -34,6 +36,7 @@ function normalizeRoundName(roundName) {
   if (name.includes('round of 16') || name.includes('ottavi')) return 'Ottavi di finale'
   if (name.includes('round of 32') || name.includes('trentaduesimi')) return 'Trentaduesimi'
   if (name.includes('round of 64') || name.includes('sessantaquattresimi')) return 'Sessantaquattresimi'
+  if (name.includes('round of 128') || name.includes('primo turno') || name.includes('centoventottesimi')) return 'Primo turno'
   if (name.includes('qualif')) return 'Qualificazioni'
   if (name.includes('final')) return 'Finale'
   return null
@@ -43,13 +46,28 @@ function roundIndexFromLabel(label) {
   return ROUND_LABELS_IN_ORDER.indexOf(label)
 }
 
-function resolveRoundLabel(matchesInRound = []) {
+function inferLabelFromRoundNumber(roundNumber) {
+  if (roundNumber === 128) return 'Primo turno'
+  if (roundNumber === 64) return 'Sessantaquattresimi'
+  if (roundNumber === 32) return 'Trentaduesimi'
+  if (roundNumber === 16) return 'Ottavi di finale'
+  if (roundNumber === 8) return 'Quarti di finale'
+  if (roundNumber === 4) return 'Semifinale'
+  if (roundNumber === 2 || roundNumber === 1) return 'Finale'
+  return null
+}
+
+function resolveRoundLabel(roundNumber, matchesInRound = []) {
   for (const match of matchesInRound) {
     const explicit = normalizeRoundName(match.round_name)
     if (explicit && explicit !== 'Qualificazioni') return explicit
   }
 
+  const inferred = inferLabelFromRoundNumber(roundNumber)
+  if (inferred) return inferred
+
   const size = matchesInRound.length
+  if (size === 64) return 'Primo turno'
   if (size === 1) return 'Finale'
   if (size === 2) return 'Semifinale'
   if (size === 4) return 'Quarti di finale'
@@ -123,24 +141,38 @@ export default function TournamentBracket({ tournament, session }) {
   // rounds sorted ascending: [1, 2, 3, ...] dove 1=Finale
   const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b)
   const roundsWithMeta = rounds.map((round) => {
-    const label = resolveRoundLabel(byRound[round])
+    const label = resolveRoundLabel(round, byRound[round])
+    const firstMatchDateMs = (byRound[round] ?? []).reduce((min, match) => {
+      const timestamp = match.match_date ? Date.parse(match.match_date) : Number.POSITIVE_INFINITY
+      return Math.min(min, Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp)
+    }, Number.POSITIVE_INFINITY)
+
     return {
       round,
       label,
       index: roundIndexFromLabel(label),
+      firstMatchDateMs,
     }
   })
 
   const sortedRoundsWithMeta = [...roundsWithMeta].sort((a, b) => {
+    const aHasDate = Number.isFinite(a.firstMatchDateMs)
+    const bHasDate = Number.isFinite(b.firstMatchDateMs)
+    if (aHasDate && bHasDate && a.firstMatchDateMs !== b.firstMatchDateMs) {
+      return a.firstMatchDateMs - b.firstMatchDateMs
+    }
+    if (aHasDate && !bHasDate) return -1
+    if (!aHasDate && bHasDate) return 1
+
     const aKnown = a.index !== -1
     const bKnown = b.index !== -1
-    if (aKnown && bKnown) return a.index - b.index
-    if (aKnown) return -1
-    if (bKnown) return 1
+    if (aKnown && bKnown && a.index !== b.index) return a.index - b.index
+    if (aKnown && !bKnown) return -1
+    if (!aKnown && bKnown) return 1
 
     const diffByMatches = (byRound[b.round]?.length ?? 0) - (byRound[a.round]?.length ?? 0)
     if (diffByMatches !== 0) return diffByMatches
-    return a.round - b.round
+    return b.round - a.round
   })
 
   const mergedRoundsByKey = sortedRoundsWithMeta.reduce((acc, { round, label, index }) => {
