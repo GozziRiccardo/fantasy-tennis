@@ -9,6 +9,23 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
 }
 
+function isBracketAvailableForTournament(tournament) {
+  if (!tournament) return false
+  if (tournament.status !== 'upcoming') return true
+
+  const startDate = new Date(tournament.start_date)
+  if (Number.isNaN(startDate.getTime())) return false
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const bracketAvailableFrom = new Date(startDate)
+  bracketAvailableFrom.setDate(bracketAvailableFrom.getDate() - 2)
+  bracketAvailableFrom.setHours(0, 0, 0, 0)
+
+  return today >= bracketAvailableFrom
+}
+
 export default function Tournament({ session }) {
   const [tournament, setTournament] = useState(null)
   const [loading,    setLoading]    = useState(true)
@@ -48,6 +65,8 @@ export default function Tournament({ session }) {
     </div>
   )
 
+  const showBracket = isBracketAvailableForTournament(tournament)
+
   return (
     <div className="page">
       <header className="page-header">
@@ -63,10 +82,10 @@ export default function Tournament({ session }) {
         </span>
       </header>
 
-      {tournament.status === 'upcoming' ? (
+      {!showBracket ? (
         <div className="card">
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>
-            Il tabellone sarà disponibile non appena il torneo inizia.
+            Il tabellone sarà disponibile da 2 giorni prima dell'inizio torneo.
           </p>
         </div>
       ) : (

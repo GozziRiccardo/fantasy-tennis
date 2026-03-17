@@ -12,6 +12,7 @@ const USER_COLORS = [
 ]
 
 const ROUND_LABELS_IN_ORDER = [
+  'Qualificazioni',
   'Primo turno',
   'Sessantaquattresimi',
   'Trentaduesimi',
@@ -60,7 +61,7 @@ function inferLabelFromRoundNumber(roundNumber) {
 function resolveRoundLabel(roundNumber, matchesInRound = []) {
   for (const match of matchesInRound) {
     const explicit = normalizeRoundName(match.round_name)
-    if (explicit && explicit !== 'Qualificazioni') return explicit
+    if (explicit) return explicit
   }
 
   const inferred = inferLabelFromRoundNumber(roundNumber)
