@@ -11,22 +11,22 @@ const USER_COLORS = [
   { bg: 'rgba(200,120,255,0.15)',border: 'rgba(200,120,255,0.5)',text: '#C878FF' },
 ]
 
-// SofaScore: numero PICCOLO = turno finale (1=Finale), numero GRANDE = primo turno/qualificazioni
-// sorted descending → pos 0 = numero più grande (primo turno), pos total-1 = numero più piccolo (Finale)
+// SofaScore: 1 = Finale, 2 = Semifinale, 3 = Quarti, ecc.
+// Numero PICCOLO = turno più avanzato (Finale)
+// Numero GRANDE = primo turno / qualificazioni
 function roundLabel(roundNumber, allRounds) {
-  const sorted = [...new Set(allRounds)].sort((a, b) => b - a) // desc: grande→piccolo
+  const sorted = [...new Set(allRounds)].sort((a, b) => a - b) // asc: 1,2,3...
   const total  = sorted.length
-  const pos    = sorted.indexOf(roundNumber)
+  const pos    = sorted.indexOf(roundNumber) // pos=0 = numero più piccolo = Finale
 
-  // pos=total-1 = numero più piccolo = Finale
-  if (pos === total - 1) return 'Finale'
-  if (pos === total - 2) return 'Semifinale'
-  if (pos === total - 3) return 'Quarti di finale'
-  if (pos === total - 4) return 'Ottavi di finale'
-  if (pos === total - 5) return 'Sedicesimi'
-  if (pos === total - 6) return 'Trentaduesimi'
-  if (pos === total - 7) return 'Sessantaquattresimi'
-  return `Qualificazione T${pos + 1}`
+  if (pos === 0) return 'Finale'
+  if (pos === 1) return 'Semifinale'
+  if (pos === 2) return 'Quarti di finale'
+  if (pos === 3) return 'Ottavi di finale'
+  if (pos === 4) return 'Sedicesimi'
+  if (pos === 5) return 'Trentaduesimi'
+  if (pos === 6) return 'Sessantaquattresimi'
+  return `Qualificazione T${pos - 6}`
 }
 
 export default function TournamentBracket({ tournament, session }) {
@@ -87,8 +87,7 @@ export default function TournamentBracket({ tournament, session }) {
     return acc
   }, {})
 
-  // rounds sorted ascending: [1, 2, 3, ..., 29]
-  // dove 1 = Finale (piccolo), 29 = qualificazioni (grande)
+  // rounds sorted ascending: [1, 2, 3, ...] dove 1=Finale
   const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b)
   const allRoundNumbers = rounds
   const hasMatches = rounds.length > 0
@@ -122,14 +121,14 @@ export default function TournamentBracket({ tournament, session }) {
         </p>
       ) : view === 'list' ? (
         <ListView
-          rounds={rounds}          // ascending: 1 (Finale) prima, 29 (quali) dopo
+          rounds={rounds}           // [1,2,3...] → Finale in cima
           byRound={byRound}
           allRoundNumbers={allRoundNumbers}
           getPlayerMeta={getPlayerMeta}
         />
       ) : (
         <BracketView
-          rounds={[...rounds].reverse()} // bracket: quali a sinistra, Finale a destra
+          rounds={[...rounds].reverse()} // [...,3,2,1] → primi turni a sinistra, Finale a destra
           byRound={byRound}
           allRoundNumbers={allRoundNumbers}
           getPlayerMeta={getPlayerMeta}
