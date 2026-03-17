@@ -11,10 +11,12 @@ const USER_COLORS = [
   { bg: 'rgba(200,120,255,0.15)',border: 'rgba(200,120,255,0.5)',text: '#C878FF' },
 ]
 
-// Calcola il nome del turno in modo relativo
-// allRounds = array di tutti i round_number unici nel torneo
+// SofaScore numera i turni al contrario:
+// numero più ALTO = primo turno (R128/R64), numero più BASSO = Finale
+// Quindi ordiniamo discendente: pos 0 = numero più alto = primo turno
+//                               pos total-1 = numero più basso = Finale
 function roundLabel(roundNumber, allRounds) {
-  const sorted = [...new Set(allRounds)].sort((a, b) => a - b)
+  const sorted = [...new Set(allRounds)].sort((a, b) => b - a) // discendente
   const total  = sorted.length
   const pos    = sorted.indexOf(roundNumber)
 
@@ -94,8 +96,9 @@ export default function TournamentBracket({ tournament, session }) {
     return acc
   }, {})
 
-  const rounds = Object.keys(byRound).map(Number).sort((a, b) => b - a)
-  const allRoundNumbers = rounds  // array completo per calcolare i nomi
+  // Ordina discendente per display: turno più recente (Finale) in cima
+  const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b)
+  const allRoundNumbers = rounds
 
   const hasMatches = rounds.length > 0
 
@@ -131,7 +134,7 @@ export default function TournamentBracket({ tournament, session }) {
         </p>
       ) : view === 'list' ? (
         <ListView
-          rounds={rounds}
+          rounds={[...rounds].reverse()} // Finale in cima nella lista
           byRound={byRound}
           allRoundNumbers={allRoundNumbers}
           getPlayerMeta={getPlayerMeta}
@@ -206,7 +209,9 @@ function PlayerCell({ player, mp, meta, done, align }) {
 
 // ── Bracket ────────────────────────────────────────────────────
 function BracketView({ rounds, byRound, allRoundNumbers, getPlayerMeta }) {
-  const orderedRounds = [...rounds].sort((a, b) => b - a)
+  // Nel bracket: prima colonna = primo turno, ultima = Finale
+  // rounds è già ordinato ascendente (primo turno = numero più alto)
+  const orderedRounds = [...rounds].reverse()
   return (
     <div className="bracket-scroll">
       <div className="bracket-grid" style={{ gridTemplateColumns: `repeat(${orderedRounds.length}, 220px)` }}>
