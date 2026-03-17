@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="FantaTennis icon 192">
+  <rect width="192" height="192" rx="36" fill="#0C0C0D"/>
+  <circle cx="96" cy="96" r="72" fill="#C8F000"/>
+  <path d="M46 66c22 0 40 18 40 40s-18 40-40 40" fill="none" stroke="#F5F5F5" stroke-width="7" stroke-linecap="round"/>
+  <path d="M146 66c-22 0-40 18-40 40s18 40 40 40" fill="none" stroke="#F5F5F5" stroke-width="7" stroke-linecap="round"/>
+</svg>
