@@ -1,5 +1,6 @@
 // supabase/functions/auto-start-tournaments/index.ts
 // Gira ogni mattina alle 7:00 UTC.
+// 0. Se start_date è tra 2 giorni → pre-sync tabellone (incluse qualificazioni)
 // 1. Se domani è start_date → email reminder a tutti
 // 2. Se oggi è start_date → aggiorna ranking ATP, poi avvia torneo
 //    (il trigger SQL congelerà i moltiplicatori con i ranking freschi)
@@ -26,8 +27,44 @@ Deno.serve(async (req) => {
   const tomorrow    = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowStr = tomorrow.toISOString().slice(0, 10)
+  const in2days     = new Date(today)
+  in2days.setDate(in2days.getDate() + 2)
+  const in2daysStr  = in2days.toISOString().slice(0, 10)
 
   const log: string[] = []
+
+  // ── 0. Pre-sync tabellone per tornei che iniziano tra 2 giorni ──
+  const { data: upcomingSoon } = await supabase
+    .from('tournaments')
+    .select('*')
+    .eq('status', 'upcoming')
+    .eq('start_date', in2daysStr)
+
+  for (const t of upcomingSoon ?? []) {
+    if (!t.api_tournament_id) {
+      log.push(`Pre-sync skipped (no api_id): ${t.name}`)
+      continue
+    }
+
+    try {
+      const syncRes = await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-tournament`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type':  'application/json',
+          },
+          body: JSON.stringify({ tournament_id: t.id }),
+        }
+      )
+
+      const syncData = await syncRes.json()
+      log.push(`Pre-sync ${t.name}: ${JSON.stringify(syncData.synced?.[0] ?? syncData)}`)
+    } catch (e) {
+      log.push(`Pre-sync failed (${t.name}): ${e}`)
+    }
+  }
 
   // ── 1. Email reminder per tornei che iniziano domani ──────
   const { data: tomorrowTournaments } = await supabase
