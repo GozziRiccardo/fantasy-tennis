@@ -143,12 +143,38 @@ export default function TournamentBracket({ tournament, session }) {
     return a.round - b.round
   })
 
-  const labelByRound = Object.fromEntries(sortedRoundsWithMeta.map(({ round, label }) => [round, label]))
-  const hasMatches = rounds.length > 0
+  const mergedRoundsByKey = sortedRoundsWithMeta.reduce((acc, { round, label, index }) => {
+    const isKnownRound = index !== -1
+    const key = isKnownRound ? `label:${label}` : `round:${round}`
 
-  // Lista e bracket mostrano sempre i turni dai primi (64/32/ottavi...) fino alla finale
-  const listRounds = sortedRoundsWithMeta.map(({ round }) => round)
-  const bracketRounds = sortedRoundsWithMeta.map(({ round }) => round)
+    if (!acc[key]) {
+      acc[key] = {
+        key,
+        label: label ?? `Turno ${round}`,
+        index,
+        firstRound: round,
+        matches: [],
+      }
+    }
+
+    acc[key].matches.push(...(byRound[round] ?? []))
+    if (round < acc[key].firstRound) acc[key].firstRound = round
+    return acc
+  }, {})
+
+  const mergedRounds = Object.values(mergedRoundsByKey).sort((a, b) => {
+    const aKnown = a.index !== -1
+    const bKnown = b.index !== -1
+    if (aKnown && bKnown) return a.index - b.index
+    if (aKnown) return -1
+    if (bKnown) return 1
+
+    const diffByMatches = b.matches.length - a.matches.length
+    if (diffByMatches !== 0) return diffByMatches
+    return a.firstRound - b.firstRound
+  })
+
+  const hasMatches = mergedRounds.length > 0
 
   return (
     <div className="tb-container">
@@ -179,16 +205,12 @@ export default function TournamentBracket({ tournament, session }) {
         </p>
       ) : view === 'list' ? (
         <ListView
-          rounds={listRounds}
-          byRound={byRound}
-          labelByRound={labelByRound}
+          rounds={mergedRounds}
           getPlayerMeta={getPlayerMeta}
         />
       ) : (
         <BracketView
-          rounds={bracketRounds}
-          byRound={byRound}
-          labelByRound={labelByRound}
+          rounds={mergedRounds}
           getPlayerMeta={getPlayerMeta}
         />
       )}
@@ -196,19 +218,19 @@ export default function TournamentBracket({ tournament, session }) {
   )
 }
 
-function ListView({ rounds, byRound, labelByRound, getPlayerMeta }) {
+function ListView({ rounds, getPlayerMeta }) {
   return (
     <div className="list-view">
       {rounds.map(round => (
-        <div key={round} className="round-section">
+        <div key={round.key} className="round-section">
           <div className="round-title">
-            {labelByRound[round] ?? `Turno ${round}`}
+            {round.label}
             <span className="round-count mono">
-              {byRound[round].filter(m => m.status === 'completed').length}/{byRound[round].length}
+              {round.matches.filter(m => m.status === 'completed').length}/{round.matches.length}
             </span>
           </div>
           <div className="matches-list">
-            {byRound[round].map(match => {
+            {round.matches.map(match => {
               const [mp1, mp2] = match.match_players ?? []
               if (!mp1 || !mp2) return null
               const p1 = mp1.atp_players
@@ -251,17 +273,17 @@ function PlayerCell({ player, mp, meta, done, align }) {
   )
 }
 
-function BracketView({ rounds, byRound, labelByRound, getPlayerMeta }) {
+function BracketView({ rounds, getPlayerMeta }) {
   return (
     <div className="bracket-scroll">
       <div className="bracket-grid" style={{ gridTemplateColumns: `repeat(${rounds.length}, 220px)` }}>
         {rounds.map(round => (
-          <div key={round} className="bracket-column">
+          <div key={round.key} className="bracket-column">
             <div className="bracket-round-label">
-              {labelByRound[round] ?? `Turno ${round}`}
+              {round.label}
             </div>
             <div className="bracket-matches">
-              {byRound[round].map(match => {
+              {round.matches.map(match => {
                 const [mp1, mp2] = match.match_players ?? []
                 if (!mp1 || !mp2) return null
                 const p1 = mp1.atp_players
