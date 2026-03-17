@@ -72,14 +72,16 @@ export default function TournamentBracket({ tournament, session }) {
       supabase
         .from('matches')
         .select(`
-          id, round_number, round_name, status,
+          id, api_match_id, match_date, round_number, round_name, status,
           match_players (
             is_winner,
             atp_players ( id, name, ranking )
           )
         `)
         .eq('tournament_id', tournament.id)
-        .order('round_number'),
+        .order('round_number')
+        .order('match_date', { ascending: true, nullsFirst: false })
+        .order('api_match_id', { ascending: true, nullsFirst: false }),
       supabase
         .from('picks')
         .select('user_id, atp_player_id, is_captain, multiplier')
@@ -118,7 +120,8 @@ export default function TournamentBracket({ tournament, session }) {
   const finalRoundAtMax = isFinalRoundAtMax(rounds, byRound)
   const hasMatches = rounds.length > 0
 
-  const listRounds = finalRoundAtMax ? [...rounds].reverse() : [...rounds]
+  // Lista e bracket devono mostrare i turni nello stesso verso (dai primi turni verso la finale)
+  const listRounds = finalRoundAtMax ? [...rounds] : [...rounds].reverse()
   const bracketRounds = finalRoundAtMax ? [...rounds] : [...rounds].reverse()
 
   return (
