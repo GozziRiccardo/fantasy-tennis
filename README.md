@@ -91,6 +91,8 @@ Apri [http://localhost:5173](http://localhost:5173)
 1. Tutti e 4 i giocatori si registrano sul sito
 2. Fate l'asta "offline" (vocale/chat) e poi un admin inserisce i roster nel database:
 
+> Se ricevi l'errore `new row violates row-level security policy for table "roster_players"`, esegui prima la migration `supabase/migrations/20260317172000_fix_admin_rls_rosters.sql` nel SQL Editor di Supabase.
+
 ```sql
 -- Esempio: assegna Alcaraz all'utente con email "mario@email.com"
 insert into public.roster_players (user_id, atp_player_id, price_paid)
