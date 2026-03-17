@@ -43,6 +43,8 @@ VITE_SUPABASE_ANON_KEY=eyJhbGci...
 
 Nel **Supabase SQL Editor**, esegui il file `schema.sql` (già fornito nel passo 1).
 
+> Da questo punto in poi, per le modifiche successive, usa sempre migration versionate nella cartella `supabase/migrations/` e applicale da terminale con `supabase db push`, senza incollare SQL manuale nel dashboard.
+
 ### 4. Popola i giocatori ATP
 
 Nel Supabase SQL Editor, esegui questo per inserire i top 10 ATP (poi completa con i 100):
@@ -91,7 +93,7 @@ Apri [http://localhost:5173](http://localhost:5173)
 1. Tutti e 4 i giocatori si registrano sul sito
 2. Fate l'asta "offline" (vocale/chat) e poi un admin inserisce i roster nel database:
 
-> Se ricevi l'errore `new row violates row-level security policy for table "roster_players"`, esegui prima la migration `supabase/migrations/20260317172000_fix_admin_rls_rosters.sql` nel SQL Editor di Supabase.
+> Se ricevi l'errore `new row violates row-level security policy for table "roster_players"`, applica le migration dalla directory progetto con Supabase CLI: `supabase db push` (include anche `supabase/migrations/20260317172000_fix_admin_rls_rosters.sql`).
 
 ```sql
 -- Esempio: assegna Alcaraz all'utente con email "mario@email.com"
