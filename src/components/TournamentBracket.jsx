@@ -11,6 +11,15 @@ const USER_COLORS = [
   { bg: 'rgba(200,120,255,0.15)',border: 'rgba(200,120,255,0.5)',text: '#C878FF' },
 ]
 
+const ROUND_LABELS_IN_ORDER = [
+  'Sessantaquattresimi',
+  'Trentaduesimi',
+  'Ottavi di finale',
+  'Quarti di finale',
+  'Semifinale',
+  'Finale',
+]
+
 function normalizeRoundName(roundName) {
   const name = String(roundName ?? '').toLowerCase()
   if (!name) return null
@@ -30,34 +39,25 @@ function normalizeRoundName(roundName) {
   return null
 }
 
-function isFinalRoundAtMax(rounds, byRound) {
-  if (rounds.length < 2) return true
-  const sorted = [...rounds].sort((a, b) => a - b)
-  const minRoundName = byRound[sorted[0]]?.[0]?.round_name
-  const maxRoundName = byRound[sorted[sorted.length - 1]]?.[0]?.round_name
-  const minIsFinal = normalizeRoundName(minRoundName) === 'Finale'
-  const maxIsFinal = normalizeRoundName(maxRoundName) === 'Finale'
-  if (minIsFinal && !maxIsFinal) return false
-  if (maxIsFinal && !minIsFinal) return true
-  return true
+function roundIndexFromLabel(label) {
+  return ROUND_LABELS_IN_ORDER.indexOf(label)
 }
 
-function roundLabel(roundNumber, allRounds, byRound, finalRoundAtMax) {
-  const explicit = normalizeRoundName(byRound[roundNumber]?.[0]?.round_name)
-  if (explicit) return explicit
+function resolveRoundLabel(matchesInRound = []) {
+  for (const match of matchesInRound) {
+    const explicit = normalizeRoundName(match.round_name)
+    if (explicit && explicit !== 'Qualificazioni') return explicit
+  }
 
-  const sorted = [...new Set(allRounds)].sort((a, b) => a - b)
-  const index = sorted.indexOf(roundNumber)
-  const stageFromFinal = finalRoundAtMax ? sorted.length - 1 - index : index
+  const size = matchesInRound.length
+  if (size === 1) return 'Finale'
+  if (size === 2) return 'Semifinale'
+  if (size === 4) return 'Quarti di finale'
+  if (size === 8) return 'Ottavi di finale'
+  if (size === 16) return 'Trentaduesimi'
+  if (size === 32) return 'Sessantaquattresimi'
 
-  if (stageFromFinal === 0) return 'Finale'
-  if (stageFromFinal === 1) return 'Semifinale'
-  if (stageFromFinal === 2) return 'Quarti di finale'
-  if (stageFromFinal === 3) return 'Ottavi di finale'
-  if (stageFromFinal === 4) return 'Sedicesimi'
-  if (stageFromFinal === 5) return 'Trentaduesimi'
-  if (stageFromFinal === 6) return 'Sessantaquattresimi'
-  return `Qualificazione T${Math.max(stageFromFinal - 6, 1)}`
+  return null
 }
 
 export default function TournamentBracket({ tournament, session }) {
@@ -122,13 +122,33 @@ export default function TournamentBracket({ tournament, session }) {
 
   // rounds sorted ascending: [1, 2, 3, ...] dove 1=Finale
   const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b)
-  const allRoundNumbers = rounds
-  const finalRoundAtMax = isFinalRoundAtMax(rounds, byRound)
+  const roundsWithMeta = rounds.map((round) => {
+    const label = resolveRoundLabel(byRound[round])
+    return {
+      round,
+      label,
+      index: roundIndexFromLabel(label),
+    }
+  })
+
+  const sortedRoundsWithMeta = [...roundsWithMeta].sort((a, b) => {
+    const aKnown = a.index !== -1
+    const bKnown = b.index !== -1
+    if (aKnown && bKnown) return a.index - b.index
+    if (aKnown) return -1
+    if (bKnown) return 1
+
+    const diffByMatches = (byRound[b.round]?.length ?? 0) - (byRound[a.round]?.length ?? 0)
+    if (diffByMatches !== 0) return diffByMatches
+    return a.round - b.round
+  })
+
+  const labelByRound = Object.fromEntries(sortedRoundsWithMeta.map(({ round, label }) => [round, label]))
   const hasMatches = rounds.length > 0
 
-  // Lista e bracket devono mostrare i turni nello stesso verso (dai primi turni verso la finale)
-  const listRounds = finalRoundAtMax ? [...rounds] : [...rounds].reverse()
-  const bracketRounds = finalRoundAtMax ? [...rounds] : [...rounds].reverse()
+  // Lista e bracket mostrano sempre i turni dai primi (64/32/ottavi...) fino alla finale
+  const listRounds = sortedRoundsWithMeta.map(({ round }) => round)
+  const bracketRounds = sortedRoundsWithMeta.map(({ round }) => round)
 
   return (
     <div className="tb-container">
@@ -161,16 +181,14 @@ export default function TournamentBracket({ tournament, session }) {
         <ListView
           rounds={listRounds}
           byRound={byRound}
-          allRoundNumbers={allRoundNumbers}
-          finalRoundAtMax={finalRoundAtMax}
+          labelByRound={labelByRound}
           getPlayerMeta={getPlayerMeta}
         />
       ) : (
         <BracketView
           rounds={bracketRounds}
           byRound={byRound}
-          allRoundNumbers={allRoundNumbers}
-          finalRoundAtMax={finalRoundAtMax}
+          labelByRound={labelByRound}
           getPlayerMeta={getPlayerMeta}
         />
       )}
@@ -178,13 +196,13 @@ export default function TournamentBracket({ tournament, session }) {
   )
 }
 
-function ListView({ rounds, byRound, allRoundNumbers, finalRoundAtMax, getPlayerMeta }) {
+function ListView({ rounds, byRound, labelByRound, getPlayerMeta }) {
   return (
     <div className="list-view">
       {rounds.map(round => (
         <div key={round} className="round-section">
           <div className="round-title">
-            {roundLabel(round, allRoundNumbers, byRound, finalRoundAtMax)}
+            {labelByRound[round] ?? `Turno ${round}`}
             <span className="round-count mono">
               {byRound[round].filter(m => m.status === 'completed').length}/{byRound[round].length}
             </span>
@@ -233,14 +251,14 @@ function PlayerCell({ player, mp, meta, done, align }) {
   )
 }
 
-function BracketView({ rounds, byRound, allRoundNumbers, finalRoundAtMax, getPlayerMeta }) {
+function BracketView({ rounds, byRound, labelByRound, getPlayerMeta }) {
   return (
     <div className="bracket-scroll">
       <div className="bracket-grid" style={{ gridTemplateColumns: `repeat(${rounds.length}, 220px)` }}>
         {rounds.map(round => (
           <div key={round} className="bracket-column">
             <div className="bracket-round-label">
-              {roundLabel(round, allRoundNumbers, byRound, finalRoundAtMax)}
+              {labelByRound[round] ?? `Turno ${round}`}
             </div>
             <div className="bracket-matches">
               {byRound[round].map(match => {
