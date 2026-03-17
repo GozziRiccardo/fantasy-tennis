@@ -11,22 +11,22 @@ const USER_COLORS = [
   { bg: 'rgba(200,120,255,0.15)',border: 'rgba(200,120,255,0.5)',text: '#C878FF' },
 ]
 
-// SofaScore numera i turni al contrario:
-// numero più ALTO = primo turno (R128/R64), numero più BASSO = Finale
-// Quindi ordiniamo discendente: pos 0 = numero più alto = primo turno
-//                               pos total-1 = numero più basso = Finale
+// SofaScore: numero PICCOLO = turno finale (1=Finale), numero GRANDE = primo turno/qualificazioni
+// sorted descending → pos 0 = numero più grande (primo turno), pos total-1 = numero più piccolo (Finale)
 function roundLabel(roundNumber, allRounds) {
-  const sorted = [...new Set(allRounds)].sort((a, b) => b - a) // discendente
+  const sorted = [...new Set(allRounds)].sort((a, b) => b - a) // desc: grande→piccolo
   const total  = sorted.length
   const pos    = sorted.indexOf(roundNumber)
 
+  // pos=total-1 = numero più piccolo = Finale
   if (pos === total - 1) return 'Finale'
   if (pos === total - 2) return 'Semifinale'
   if (pos === total - 3) return 'Quarti di finale'
   if (pos === total - 4) return 'Ottavi di finale'
   if (pos === total - 5) return 'Sedicesimi'
   if (pos === total - 6) return 'Trentaduesimi'
-  return `Turno ${pos + 1}`
+  if (pos === total - 7) return 'Sessantaquattresimi'
+  return `Qualificazione T${pos + 1}`
 }
 
 export default function TournamentBracket({ tournament, session }) {
@@ -43,7 +43,6 @@ export default function TournamentBracket({ tournament, session }) {
 
   async function load() {
     setLoading(true)
-
     const [{ data: m }, { data: picks }, { data: profiles }] = await Promise.all([
       supabase
         .from('matches')
@@ -65,11 +64,8 @@ export default function TournamentBracket({ tournament, session }) {
 
     setMatches(m ?? [])
     setAllPicks(picks ?? [])
-
     const userList = (profiles ?? []).map((p, i) => ({
-      id:       p.id,
-      username: p.username,
-      color:    USER_COLORS[i % USER_COLORS.length],
+      id: p.id, username: p.username, color: USER_COLORS[i % USER_COLORS.length],
     }))
     setUsers(userList)
     setLoading(false)
@@ -80,12 +76,7 @@ export default function TournamentBracket({ tournament, session }) {
     if (!pick) return null
     const user = users.find(u => u.id === pick.user_id)
     if (!user) return null
-    return {
-      color:      user.color,
-      username:   user.username,
-      isCaptain:  pick.is_captain,
-      multiplier: pick.multiplier,
-    }
+    return { color: user.color, username: user.username, isCaptain: pick.is_captain, multiplier: pick.multiplier }
   }
 
   if (loading) return <div style={{ padding: 24, color: 'var(--text2)', fontSize: 13 }}>Caricamento tabellone…</div>
@@ -96,26 +87,23 @@ export default function TournamentBracket({ tournament, session }) {
     return acc
   }, {})
 
-  // Ordina discendente per display: turno più recente (Finale) in cima
+  // rounds sorted ascending: [1, 2, 3, ..., 29]
+  // dove 1 = Finale (piccolo), 29 = qualificazioni (grande)
   const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b)
   const allRoundNumbers = rounds
-
   const hasMatches = rounds.length > 0
 
   return (
     <div className="tb-container">
       <div className="tb-header">
         <div className="tb-view-toggle">
-          <button
-            className={`toggle-btn ${view === 'list' ? 'active' : ''}`}
-            onClick={() => setView('list')}
-          >☰ Lista</button>
-          <button
-            className={`toggle-btn ${view === 'bracket' ? 'active' : ''}`}
-            onClick={() => setView('bracket')}
-          >⊞ Bracket</button>
+          <button className={`toggle-btn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>
+            ☰ Lista
+          </button>
+          <button className={`toggle-btn ${view === 'bracket' ? 'active' : ''}`} onClick={() => setView('bracket')}>
+            ⊞ Bracket
+          </button>
         </div>
-
         {users.length > 0 && (
           <div className="tb-legend">
             {users.map(u => (
@@ -134,14 +122,14 @@ export default function TournamentBracket({ tournament, session }) {
         </p>
       ) : view === 'list' ? (
         <ListView
-          rounds={[...rounds].reverse()} // Finale in cima nella lista
+          rounds={rounds}          // ascending: 1 (Finale) prima, 29 (quali) dopo
           byRound={byRound}
           allRoundNumbers={allRoundNumbers}
           getPlayerMeta={getPlayerMeta}
         />
       ) : (
         <BracketView
-          rounds={rounds}
+          rounds={[...rounds].reverse()} // bracket: quali a sinistra, Finale a destra
           byRound={byRound}
           allRoundNumbers={allRoundNumbers}
           getPlayerMeta={getPlayerMeta}
@@ -151,7 +139,6 @@ export default function TournamentBracket({ tournament, session }) {
   )
 }
 
-// ── Lista per turno ────────────────────────────────────────────
 function ListView({ rounds, byRound, allRoundNumbers, getPlayerMeta }) {
   return (
     <div className="list-view">
@@ -167,10 +154,10 @@ function ListView({ rounds, byRound, allRoundNumbers, getPlayerMeta }) {
             {byRound[round].map(match => {
               const [mp1, mp2] = match.match_players ?? []
               if (!mp1 || !mp2) return null
-              const p1   = mp1.atp_players
-              const p2   = mp2.atp_players
-              const m1   = getPlayerMeta(p1?.id)
-              const m2   = getPlayerMeta(p2?.id)
+              const p1 = mp1.atp_players
+              const p2 = mp2.atp_players
+              const m1 = getPlayerMeta(p1?.id)
+              const m2 = getPlayerMeta(p2?.id)
               const done = match.status === 'completed'
               return (
                 <div key={match.id} className={`match-row ${(m1 || m2) ? 'match-highlighted' : ''}`}>
@@ -207,15 +194,11 @@ function PlayerCell({ player, mp, meta, done, align }) {
   )
 }
 
-// ── Bracket ────────────────────────────────────────────────────
 function BracketView({ rounds, byRound, allRoundNumbers, getPlayerMeta }) {
-  // Nel bracket: prima colonna = primo turno, ultima = Finale
-  // rounds è già ordinato ascendente (primo turno = numero più alto)
-  const orderedRounds = [...rounds].reverse()
   return (
     <div className="bracket-scroll">
-      <div className="bracket-grid" style={{ gridTemplateColumns: `repeat(${orderedRounds.length}, 220px)` }}>
-        {orderedRounds.map(round => (
+      <div className="bracket-grid" style={{ gridTemplateColumns: `repeat(${rounds.length}, 220px)` }}>
+        {rounds.map(round => (
           <div key={round} className="bracket-column">
             <div className="bracket-round-label">
               {roundLabel(round, allRoundNumbers)}
@@ -224,10 +207,10 @@ function BracketView({ rounds, byRound, allRoundNumbers, getPlayerMeta }) {
               {byRound[round].map(match => {
                 const [mp1, mp2] = match.match_players ?? []
                 if (!mp1 || !mp2) return null
-                const p1   = mp1.atp_players
-                const p2   = mp2.atp_players
-                const m1   = getPlayerMeta(p1?.id)
-                const m2   = getPlayerMeta(p2?.id)
+                const p1 = mp1.atp_players
+                const p2 = mp2.atp_players
+                const m1 = getPlayerMeta(p1?.id)
+                const m2 = getPlayerMeta(p2?.id)
                 const done = match.status === 'completed'
                 return (
                   <div key={match.id} className="bracket-match">
