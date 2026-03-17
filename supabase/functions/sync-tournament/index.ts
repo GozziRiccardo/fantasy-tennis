@@ -13,6 +13,8 @@ const HEADERS = (apiKey: string) => ({
   'X-RapidAPI-Host': 'tennisapi1.p.rapidapi.com',
 })
 
+const UPCOMING_SYNC_WINDOW_DAYS = 2
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders })
@@ -35,12 +37,29 @@ Deno.serve(async (req) => {
     const { data } = await supabase.from('tournaments').select('*').eq('id', forcedId)
     tournaments = data ?? []
   } else {
-    const { data } = await supabase.from('tournaments').select('*').eq('status', 'ongoing')
-    tournaments = data ?? []
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().slice(0, 10)
+
+    const upcomingLimit = new Date(today)
+    upcomingLimit.setDate(upcomingLimit.getDate() + UPCOMING_SYNC_WINDOW_DAYS)
+    const upcomingLimitStr = upcomingLimit.toISOString().slice(0, 10)
+
+    const [{ data: ongoing }, { data: upcomingInWindow }] = await Promise.all([
+      supabase.from('tournaments').select('*').eq('status', 'ongoing'),
+      supabase
+        .from('tournaments')
+        .select('*')
+        .eq('status', 'upcoming')
+        .gte('start_date', todayStr)
+        .lte('start_date', upcomingLimitStr),
+    ])
+
+    tournaments = [...(ongoing ?? []), ...(upcomingInWindow ?? [])]
   }
 
   if (tournaments.length === 0) {
-    return jsonOk({ message: forcedId ? 'Tournament not found.' : 'No ongoing tournaments.' })
+    return jsonOk({ message: forcedId ? 'Tournament not found.' : 'No ongoing tournaments or upcoming tournaments in sync window.' })
   }
 
   const results: any[] = []
