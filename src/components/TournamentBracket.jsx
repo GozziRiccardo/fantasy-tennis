@@ -1,6 +1,4 @@
 // src/components/TournamentBracket.jsx
-// Componente condiviso per visualizzare il tabellone di un torneo.
-// Usato sia nella pagina Torneo (live) che nello Storico (completati).
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
@@ -13,13 +11,20 @@ const USER_COLORS = [
   { bg: 'rgba(200,120,255,0.15)',border: 'rgba(200,120,255,0.5)',text: '#C878FF' },
 ]
 
-function roundLabel(n, total) {
-  if (n === total)     return 'Finale'
-  if (n === total - 1) return 'Semifinale'
-  if (n === total - 2) return 'Quarti di finale'
-  if (n === total - 3) return 'Ottavi di finale'
-  if (n === total - 4) return 'Quarto di finale'
-  return `Turno ${n}`
+// Calcola il nome del turno in modo relativo
+// allRounds = array di tutti i round_number unici nel torneo
+function roundLabel(roundNumber, allRounds) {
+  const sorted = [...new Set(allRounds)].sort((a, b) => a - b)
+  const total  = sorted.length
+  const pos    = sorted.indexOf(roundNumber)
+
+  if (pos === total - 1) return 'Finale'
+  if (pos === total - 2) return 'Semifinale'
+  if (pos === total - 3) return 'Quarti di finale'
+  if (pos === total - 4) return 'Ottavi di finale'
+  if (pos === total - 5) return 'Sedicesimi'
+  if (pos === total - 6) return 'Trentaduesimi'
+  return `Turno ${pos + 1}`
 }
 
 export default function TournamentBracket({ tournament, session }) {
@@ -59,7 +64,6 @@ export default function TournamentBracket({ tournament, session }) {
     setMatches(m ?? [])
     setAllPicks(picks ?? [])
 
-    // Associa un colore fisso a ciascun utente in base all'ordine in profiles
     const userList = (profiles ?? []).map((p, i) => ({
       id:       p.id,
       username: p.username,
@@ -89,13 +93,14 @@ export default function TournamentBracket({ tournament, session }) {
     acc[m.round_number].push(m)
     return acc
   }, {})
+
   const rounds = Object.keys(byRound).map(Number).sort((a, b) => b - a)
+  const allRoundNumbers = rounds  // array completo per calcolare i nomi
 
   const hasMatches = rounds.length > 0
 
   return (
     <div className="tb-container">
-      {/* ── Header con toggle ── */}
       <div className="tb-header">
         <div className="tb-view-toggle">
           <button
@@ -108,7 +113,6 @@ export default function TournamentBracket({ tournament, session }) {
           >⊞ Bracket</button>
         </div>
 
-        {/* ── Legenda colori ── */}
         {users.length > 0 && (
           <div className="tb-legend">
             {users.map(u => (
@@ -126,22 +130,32 @@ export default function TournamentBracket({ tournament, session }) {
           Nessuna partita disponibile per questo torneo.
         </p>
       ) : view === 'list' ? (
-        <ListView rounds={rounds} byRound={byRound} tournament={tournament} getPlayerMeta={getPlayerMeta} />
+        <ListView
+          rounds={rounds}
+          byRound={byRound}
+          allRoundNumbers={allRoundNumbers}
+          getPlayerMeta={getPlayerMeta}
+        />
       ) : (
-        <BracketView rounds={rounds} byRound={byRound} tournament={tournament} getPlayerMeta={getPlayerMeta} />
+        <BracketView
+          rounds={rounds}
+          byRound={byRound}
+          allRoundNumbers={allRoundNumbers}
+          getPlayerMeta={getPlayerMeta}
+        />
       )}
     </div>
   )
 }
 
 // ── Lista per turno ────────────────────────────────────────────
-function ListView({ rounds, byRound, tournament, getPlayerMeta }) {
+function ListView({ rounds, byRound, allRoundNumbers, getPlayerMeta }) {
   return (
     <div className="list-view">
       {rounds.map(round => (
         <div key={round} className="round-section">
           <div className="round-title">
-            {roundLabel(round, tournament.total_rounds)}
+            {roundLabel(round, allRoundNumbers)}
             <span className="round-count mono">
               {byRound[round].filter(m => m.status === 'completed').length}/{byRound[round].length}
             </span>
@@ -191,7 +205,7 @@ function PlayerCell({ player, mp, meta, done, align }) {
 }
 
 // ── Bracket ────────────────────────────────────────────────────
-function BracketView({ rounds, byRound, tournament, getPlayerMeta }) {
+function BracketView({ rounds, byRound, allRoundNumbers, getPlayerMeta }) {
   const orderedRounds = [...rounds].sort((a, b) => b - a)
   return (
     <div className="bracket-scroll">
@@ -199,7 +213,7 @@ function BracketView({ rounds, byRound, tournament, getPlayerMeta }) {
         {orderedRounds.map(round => (
           <div key={round} className="bracket-column">
             <div className="bracket-round-label">
-              {roundLabel(round, tournament.total_rounds)}
+              {roundLabel(round, allRoundNumbers)}
             </div>
             <div className="bracket-matches">
               {byRound[round].map(match => {
