@@ -1,0 +1,101 @@
+/* TournamentStatus.css */
+
+.tournament-status {
+  margin-top: 8px;
+}
+
+.ts-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.ts-title { font-size: 28px; }
+.ts-empty { font-size: 13px; color: var(--text2); }
+
+/* ── Round group ───────────────────────────────────────────── */
+.ts-round { margin-bottom: 24px; }
+.ts-round-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 10px;
+  font-family: var(--font-mono);
+}
+
+.ts-matches { display: flex; flex-direction: column; gap: 6px; }
+
+/* ── Match row ─────────────────────────────────────────────── */
+.ts-match {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  transition: border-color 0.12s;
+}
+.ts-match-highlight {
+  border-color: rgba(200, 240, 0, 0.25);
+  background: rgba(200, 240, 0, 0.03);
+}
+
+/* ── Player cells ──────────────────────────────────────────── */
+.ts-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ts-player-right {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.ts-player-name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ts-winner .ts-player-name { color: var(--text); font-weight: 500; }
+.ts-loser  .ts-player-name { color: var(--text3); }
+
+.ts-mine .ts-player-name { color: var(--text); }
+
+.ts-player-badges { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+
+.ts-captain {
+  font-size: 10px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  background: rgba(200,240,0,0.1);
+  padding: 1px 6px;
+  border-radius: 100px;
+}
+.ts-mult {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.ts-win-dot {
+  font-size: 11px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ── VS separator ──────────────────────────────────────────── */
+.ts-vs {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}

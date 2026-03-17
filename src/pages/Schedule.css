@@ -1,0 +1,113 @@
+/* Schedule.css */
+
+.schedule-section-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 12px;
+  margin-top: 8px;
+}
+
+.schedule-list { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Tournament card ───────────────────────────────────────── */
+.tournament-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.12s;
+}
+.tournament-card:hover { border-color: var(--border2); }
+
+.ongoing-card {
+  border-color: rgba(255,70,70,0.3);
+  background: rgba(255,70,70,0.03);
+  margin-bottom: 24px;
+}
+.next-card {
+  border-color: rgba(200,240,0,0.25);
+  background: rgba(200,240,0,0.03);
+}
+.completed-card { opacity: 0.6; }
+.completed-card:hover { opacity: 0.8; }
+
+.tc-left { flex: 1; min-width: 0; }
+.tc-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tc-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.next-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.tc-name {
+  font-size: clamp(20px, 3vw, 28px);
+  line-height: 1;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tc-dates {
+  font-size: 12px;
+  color: var(--text2);
+  font-family: var(--font-mono);
+}
+.tc-duration { color: var(--text3); margin-left: 4px; }
+.tc-rounds { font-size: 11px; color: var(--text3); }
+
+/* ── Countdown ─────────────────────────────────────────────── */
+.tc-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 8px 16px;
+  min-width: 60px;
+}
+.countdown-num {
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text);
+}
+.countdown-label {
+  font-size: 10px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.countdown-soon .countdown-num { color: var(--accent); }
+.countdown-soon {
+  border-color: rgba(200,240,0,0.3);
+  background: rgba(200,240,0,0.05);
+}
+
+@media (max-width: 600px) {
+  .tournament-card { flex-direction: column; align-items: flex-start; }
+  .tc-right { flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
+}

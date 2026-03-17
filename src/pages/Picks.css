@@ -1,0 +1,146 @@
+.locked-banner {
+  background: rgba(255,200,0,0.08);
+  border: 1px solid rgba(255,200,0,0.2);
+  color: #FFC850;
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* ── Selection strip ───────────────────────────────────────── */
+.selection-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.selection-slot {
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: border-color 0.15s;
+}
+.selection-slot.filled {
+  border-style: solid;
+  border-color: var(--border2);
+  background: var(--bg3);
+}
+.slot-name { font-size: 14px; font-weight: 500; }
+.slot-empty { font-size: 12px; color: var(--text3); }
+
+.captain-label {
+  background: var(--accent);
+  color: #0C0C0D;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  padding: 1px 7px;
+  border-radius: 100px;
+}
+.set-captain-btn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-body);
+}
+.set-captain-btn:hover { color: var(--accent); }
+
+/* ── Info / hint ───────────────────────────────────────────── */
+.picks-info { margin-bottom: 14px; }
+.picks-hint { font-size: 12px; color: var(--text2); }
+.hint-gray { color: var(--text3); }
+
+/* ── Picks grid ────────────────────────────────────────────── */
+.picks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.pick-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text);
+  position: relative;
+  overflow: hidden;
+}
+.pick-card:hover:not(:disabled):not(.pick-disabled) {
+  border-color: var(--border2);
+  background: var(--bg3);
+}
+.pick-card.pick-selected {
+  background: rgba(200,240,0,0.06);
+  border-color: rgba(200,240,0,0.35);
+}
+.pick-card.pick-captain {
+  background: rgba(200,240,0,0.1);
+  border-color: var(--accent);
+}
+.pick-card.pick-prev-used {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.pick-card.pick-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pick-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pick-rank { font-size: 11px; color: var(--text2); }
+.pick-mult { font-size: 12px; color: var(--accent); }
+.pick-name { font-size: 14px; font-weight: 500; line-height: 1.3; }
+
+.pick-captain-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  margin-top: 2px;
+  align-self: flex-start;
+  transition: all 0.12s;
+}
+.pick-captain-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.captain-crown {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.prev-used-label {
+  font-size: 10px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 600px) {
+  .selection-strip { grid-template-columns: 1fr; }
+}

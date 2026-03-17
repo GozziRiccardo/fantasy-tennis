@@ -1,0 +1,91 @@
+/* MyTeam.css — aggiornato con stili punti */
+
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.player-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s;
+}
+.player-card:hover { border-color: var(--border2); }
+
+.player-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.player-ranking { font-size: 12px; color: var(--text2); }
+
+.player-mult-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 100px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text2);
+}
+.player-mult-badge .mono { color: var(--accent); font-weight: 500; }
+
+.player-name {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.player-card-bottom {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.price-paid { font-size: 11px; color: var(--text3); }
+
+.player-pts {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+}
+.player-pts-zero {
+  font-size: 12px;
+  color: var(--text3);
+}
+
+/* ── ATP Table ─────────────────────────────────────────────── */
+.atp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.atp-table th {
+  text-align: left;
+  padding: 10px 20px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text2);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+.atp-table td {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.atp-table tr:last-child td { border-bottom: none; }
+.atp-table tr.row-owned td { background: rgba(200,240,0,0.04); }
+.atp-table tr:hover td { background: var(--bg3); }
+.atp-table tr.row-owned:hover td { background: rgba(200,240,0,0.07); }
+.player-col { font-weight: 400; }
+.price-col { color: var(--accent); }
+.in-roster-dot { color: var(--accent); font-size: 10px; }
+
+.empty-state { color: var(--text); font-size: 15px; }

@@ -1,0 +1,5 @@
+Project_url: https://qhibnmwaqfcedbrakcml.supabase.co
+
+key: sb_publishable_-YbFwY0G_onY_wgw5ovShA_O0wn6Mbw
+
+X-RapidAPI-Key: 90419392c0msh1cdf1ae7d45f463p1263cajsn42ff50a67e8a

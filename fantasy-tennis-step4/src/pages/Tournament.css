@@ -1,0 +1,210 @@
+/* Tournament.css */
+
+/* ── View toggle ───────────────────────────────────────────── */
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+}
+.toggle-btn {
+  padding: 7px 16px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.toggle-btn.active {
+  background: var(--bg4);
+  color: var(--text);
+}
+.toggle-btn:hover:not(.active) { color: var(--text); }
+
+/* ── Color legend ──────────────────────────────────────────── */
+.color-legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 100px;
+  border: 1px solid;
+  background: var(--bg2);
+  font-size: 13px;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── List view ─────────────────────────────────────────────── */
+.list-view { display: flex; flex-direction: column; gap: 24px; }
+
+.round-section {}
+.round-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.round-count {
+  font-size: 12px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+.matches-list { display: flex; flex-direction: column; gap: 6px; }
+
+.match-row {
+  display: grid;
+  grid-template-columns: 1fr 36px 1fr;
+  align-items: center;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  transition: border-color 0.12s;
+}
+.match-highlighted { border-color: var(--border2); }
+
+.match-vs {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text3);
+  background: var(--bg3);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+/* ── Player cell ───────────────────────────────────────────── */
+.player-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 0;
+  border: none;
+  transition: background 0.12s;
+  min-width: 0;
+}
+.player-cell-right {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.cell-won  .cell-name { color: var(--text); font-weight: 500; }
+.cell-lost .cell-name { color: var(--text3); }
+
+.cell-name {
+  font-size: 13px;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cell-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.cell-captain { font-size: 12px; }
+.cell-mult { font-size: 11px; }
+.cell-checkmark {
+  font-size: 11px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ── Bracket view ──────────────────────────────────────────── */
+.bracket-scroll {
+  overflow-x: auto;
+  padding-bottom: 16px;
+  margin: 0 -32px;
+  padding: 0 32px 16px;
+}
+.bracket-grid {
+  display: grid;
+  gap: 0;
+  min-width: max-content;
+}
+.bracket-column {
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+}
+.bracket-column:last-child { border-right: none; }
+
+.bracket-round-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bracket-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bracket-match {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg2);
+}
+
+.bracket-divider {
+  height: 1px;
+  background: var(--border);
+}
+
+.bracket-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  gap: 6px;
+  border-left: 3px solid transparent;
+  transition: background 0.1s;
+}
+.bp-name {
+  font-size: 12px;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bp-won  .bp-name { font-weight: 500; }
+.bp-lost .bp-name { color: var(--text3); }
+.bp-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.bp-check { font-size: 10px; color: var(--accent); }
+
+@media (max-width: 600px) {
+  .view-toggle { display: none; }
+}

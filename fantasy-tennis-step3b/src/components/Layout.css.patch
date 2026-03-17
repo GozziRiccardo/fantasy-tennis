@@ -1,0 +1,14 @@
+/* Layout.css — aggiornato: aggiungi queste righe al fondo del tuo Layout.css esistente */
+
+.nav-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0;
+}
+
+.nav-item-admin {
+  color: var(--text3);
+  font-size: 13px;
+}
+.nav-item-admin:hover { color: var(--text2); }
+.nav-item-admin.active { color: var(--accent); background: rgba(200,240,0,0.1); }
