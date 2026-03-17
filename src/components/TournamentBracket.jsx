@@ -14,6 +14,12 @@ const USER_COLORS = [
 function normalizeRoundName(roundName) {
   const name = String(roundName ?? '').toLowerCase()
   if (!name) return null
+  if (name.includes('1/64') || name.includes('64th')) return 'Sessantaquattresimi'
+  if (name.includes('1/32') || name.includes('32nd')) return 'Trentaduesimi'
+  if (name.includes('1/16') || name.includes('16th')) return 'Ottavi di finale'
+  if (name.includes('1/8') || name.includes('8th')) return 'Quarti di finale'
+  if (name.includes('1/4') || name.includes('4th')) return 'Semifinale'
+  if (name.includes('1/2') || name.includes('2nd')) return 'Finale'
   if (name.includes('semi')) return 'Semifinale'
   if (name.includes('quarter') || name.includes('quarti')) return 'Quarti di finale'
   if (name.includes('round of 16') || name.includes('ottavi')) return 'Ottavi di finale'
