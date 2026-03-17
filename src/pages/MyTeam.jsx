@@ -24,7 +24,11 @@ export default function MyTeam({ session }) {
           .select('*, atp_players(*)')
           .eq('user_id', session.user.id)
           .order('atp_players(ranking)'),
-        supabase.from('atp_players').select('*').order('ranking'),
+        supabase
+          .from('atp_players')
+          .select('*')
+          .lte('ranking', 100)
+          .order('ranking'),
       ])
 
       setCredits(profile?.credits_remaining ?? 0)
