@@ -14,6 +14,9 @@ const HEADERS = (apiKey: string) => ({
 })
 
 const UPCOMING_SYNC_WINDOW_DAYS = 2
+interface SyncRequestBody {
+  tournament_id?: string
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -29,13 +32,22 @@ Deno.serve(async (req) => {
   )
   const apiKey = Deno.env.get('RAPIDAPI_KEY')!
 
-  const body     = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+  let body: SyncRequestBody = {}
+  if (req.method === 'POST') {
+    body = await req.json().catch(() => ({}))
+  }
   const forcedId = body.tournament_id ?? null
 
   let tournaments: any[]
   if (forcedId) {
-    const { data } = await supabase.from('tournaments').select('*').eq('id', forcedId)
-    tournaments = data ?? []
+    const { data, error } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('id', forcedId)
+      .maybeSingle()
+    if (error) return jsonError(error.message, 500)
+    if (!data) return jsonError(`Tournament not found: ${forcedId}`, 404)
+    tournaments = [data]
   } else {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -235,6 +247,13 @@ function mapStatus(type: string): 'scheduled' | 'live' | 'completed' {
 function jsonOk(data: unknown) {
   return new Response(JSON.stringify(data), {
     status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
+function jsonError(message: string, status = 400) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
