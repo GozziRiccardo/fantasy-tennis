@@ -29,42 +29,39 @@ Deno.serve(async (req) => {
   )
   const apiKey = Deno.env.get('RAPIDAPI_KEY')!
 
-  const body     = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
-  const forcedId = body.tournament_id ?? null
-
-  let tournaments: any[]
-  if (forcedId) {
-    const { data } = await supabase.from('tournaments').select('*').eq('id', forcedId)
-    tournaments = data ?? []
-  } else {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayStr = today.toISOString().slice(0, 10)
-
-    const upcomingLimit = new Date(today)
-    upcomingLimit.setDate(upcomingLimit.getDate() + UPCOMING_SYNC_WINDOW_DAYS)
-    const upcomingLimitStr = upcomingLimit.toISOString().slice(0, 10)
-
-    const [{ data: ongoing }, { data: upcomingInWindow }] = await Promise.all([
-      supabase.from('tournaments').select('*').eq('status', 'ongoing'),
-      supabase
-        .from('tournaments')
-        .select('*')
-        .eq('status', 'upcoming')
-        .gte('start_date', todayStr)
-        .lte('start_date', upcomingLimitStr),
-    ])
-
-    tournaments = [...(ongoing ?? []), ...(upcomingInWindow ?? [])]
+  let body: { tournament_id?: string } = {}
+  if (req.method === 'POST') {
+    try { body = await req.json() } catch { body = {} }
   }
 
-  if (tournaments.length === 0) {
-    return jsonOk({ message: forcedId ? 'Tournament not found.' : 'No ongoing tournaments or upcoming tournaments in sync window.' })
+  const requestedId = body.tournament_id
+  const forcedId = requestedId ?? null
+
+  let tournamentsToSync: any[]
+
+  if (requestedId) {
+    const { data, error } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('id', requestedId)
+      .maybeSingle()
+    if (error) return jsonError(error.message, 500)
+    if (!data) return jsonError(`Tournament not found: ${requestedId}`, 404)
+    tournamentsToSync = [data]
+  } else {
+    const { data, error } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('status', 'ongoing')
+    if (error) return jsonError(error.message, 500)
+    if (!data || data.length === 0) return jsonOk({ message: 'No ongoing tournaments.' })
+    tournamentsToSync = data
   }
 
   const results: any[] = []
 
-  for (const t of tournaments) {
+  for (const tournament of tournamentsToSync) {
+    const t = tournament
     try {
       if (!t.api_tournament_id) {
         results.push({ tournament: t.name, skipped: 'No api_tournament_id set in DB' })
