@@ -135,7 +135,17 @@ async function syncMatches(
       5000
     )
     if (!res.ok) break
-    const events = (await res.json()).events ?? []
+    let events: any[] = []
+    try {
+      const text = await res.text()
+      if (text && text.length > 0) {
+        const json = JSON.parse(text)
+        events = json.events ?? []
+      }
+    } catch (e) {
+      console.log(`JSON parse error on page ${page}:`, e)
+      break
+    }
     if (events.length === 0) break
     allMatches.push(...events)
   }
@@ -148,7 +158,17 @@ async function syncMatches(
       5000
     )
     if (!res.ok) break
-    const events = (await res.json()).events ?? []
+    let events: any[] = []
+    try {
+      const text = await res.text()
+      if (text && text.length > 0) {
+        const json = JSON.parse(text)
+        events = json.events ?? []
+      }
+    } catch (e) {
+      console.log(`JSON parse error on page ${page}:`, e)
+      break
+    }
     if (events.length === 0) break
     allMatches.push(...events)
   }
