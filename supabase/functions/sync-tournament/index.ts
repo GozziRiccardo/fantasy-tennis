@@ -123,9 +123,20 @@ async function getCurrentSeasonId(apiKey: string, tournamentId: string): Promise
   console.log(`[sync-tournament] Fetching seasons for tournamentId=${tournamentId}`)
   const url = `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/seasons`
   let res: Response
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 7000)
   try {
-    res = await fetch(url, { headers: HEADERS(apiKey) })
+    res = await fetch(url, {
+      headers: HEADERS(apiKey),
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
   } catch (e) {
+    clearTimeout(timeout)
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      console.log('[sync-tournament] API call timed out after 7s while fetching seasons')
+      return null
+    }
     console.error(`[sync-tournament] Seasons fetch network error for ${tournamentId}:`, e)
     return null
   }
@@ -153,7 +164,7 @@ async function getCurrentSeasonId(apiKey: string, tournamentId: string): Promise
 }
 
 
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 5000): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 7000): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -186,9 +197,13 @@ async function syncMatches(
     res = await fetchWithTimeout(
       lastEventsUrl,
       { headers: HEADERS(apiKey) },
-      6000,
+      7000,
     )
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      console.log('[sync-tournament] API call timed out after 7s')
+      return { matches_processed: 0, error: 'timeout' }
+    }
     console.error('[sync-tournament] Network/timeout error on last events page=0:', e)
     return { matches_fetched: 0, matches_processed: 0 }
   }
