@@ -21,6 +21,7 @@ export default function MyTeam({ session }) {
   const [loading,  setLoading]  = useState(true)
   const [credits,  setCredits]  = useState(0)
   const [pointsMap, setPointsMap] = useState({}) // atp_player_id → total_points
+  const [livePointsMap, setLivePointsMap] = useState({}) // atp_player_id → live points (schierato, no captain)
   const [totalPointsMap, setTotalPointsMap] = useState({})
   const [ownerMap, setOwnerMap] = useState({})
 
@@ -83,11 +84,51 @@ export default function MyTeam({ session }) {
         scheduledMap[pid] = (scheduledMap[pid] ?? 0) + (s.total_points ?? 0)
       })
       setPointsMap(scheduledMap)
-      const { data: totalScores } = await supabase.rpc('get_player_total_points')
+
+      // Carica punti live se c'è un torneo in corso
+      const { data: ongoingTournament } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('status', 'ongoing')
+        .maybeSingle()
+
+      if (ongoingTournament) {
+        const { data: liveScores } = await supabase
+          .rpc('compute_live_tournament_scores', {
+            p_tournament_id: ongoingTournament.id,
+          })
+
+        const liveMap = {}
+        ;(liveScores ?? []).filter(s => s.user_id === session.user.id).forEach(s => {
+          // base_points + win_bonus (NO captain bonus per "punti schierati" display)
+          // ma total_points include captain bonus, quindi usiamo base_points + win_bonus
+          liveMap[s.atp_player_id] = (s.base_points ?? 0) + (s.win_bonus ?? 0)
+        })
+        setLivePointsMap(liveMap)
+      } else {
+        setLivePointsMap({})
+      }
+
+      // Punti totali da tornei completati
+      const { data: totalScores } = await supabase
+        .rpc('get_player_total_points')
+
       const totalMap = {}
       ;(totalScores ?? []).forEach(s => {
-        totalMap[s.atp_player_id] = s.total_points ?? 0
+        totalMap[s.atp_player_id] = Number(s.total_points) || 0
       })
+
+      // Aggiungi punti live dal torneo in corso (base + win_bonus, senza captain)
+      if (ongoingTournament) {
+        const { data: liveScores } = await supabase
+          .rpc('compute_live_tournament_scores', {
+            p_tournament_id: ongoingTournament.id,
+          })
+        ;(liveScores ?? []).forEach(s => {
+          const livePts = (s.base_points ?? 0) + (s.win_bonus ?? 0)
+          totalMap[s.atp_player_id] = (totalMap[s.atp_player_id] ?? 0) + livePts
+        })
+      }
       setTotalPointsMap(totalMap)
 
       setLoading(false)
@@ -123,8 +164,6 @@ export default function MyTeam({ session }) {
           {roster.map(r => {
             const p    = r.atp_players
             const mult = computeMultiplier(p.ranking)
-            const pts  = pointsMap[p.id] ?? 0
-            const totalPts = totalPointsMap[p.id] ?? 0
             return (
               <div key={r.id} className="player-card card card-sm">
                 <div className="player-card-top">
@@ -139,20 +178,33 @@ export default function MyTeam({ session }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="price-paid mono">{r.price_paid} crediti</span>
                   </div>
-                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Da schierato</span>
-                      <span className="mono" style={{ color: pts > 0 ? 'var(--accent)' : 'var(--text3)', fontSize: 12, fontWeight: 500 }}>
-                        {pts > 0 ? `+${pts}` : '—'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Totali</span>
-                      <span className="mono" style={{ color: totalPts > 0 ? 'var(--text2)' : 'var(--text3)', fontSize: 12 }}>
-                        {totalPts > 0 ? `+${totalPts}` : '—'}
-                      </span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const pts = pointsMap[p.id] ?? 0           // punti da schierato (tornei completati)
+                    const livePts = livePointsMap[p.id] ?? 0   // punti live torneo in corso (no captain)
+                    const totalSchierato = pts + livePts + (livePointsMap[p.id] !== undefined && roster.find(rp => rp.atp_player_id === p.id) ? 0 : 0)
+                    const totalPts = totalPointsMap[p.id] ?? 0
+
+                    return (
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            Da schierato
+                          </span>
+                          <span className="mono" style={{ color: totalSchierato > 0 ? 'var(--accent)' : 'var(--text3)', fontSize: 12, fontWeight: 500 }}>
+                            {totalSchierato > 0 ? `+${totalSchierato}` : '—'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            Totali
+                          </span>
+                          <span className="mono" style={{ color: totalPts > 0 ? 'var(--text2)' : 'var(--text3)', fontSize: 12 }}>
+                            {totalPts > 0 ? `+${totalPts}` : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             )
