@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const syncRes = await fetch(
+      const res = await fetch(
         `${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-tournament`,
         {
           method: 'POST',
@@ -59,8 +59,15 @@ Deno.serve(async (req) => {
         }
       )
 
-      const syncData = await syncRes.json()
-      log.push(`Pre-sync ${t.name}: ${JSON.stringify(syncData.synced?.[0] ?? syncData)}`)
+      let data: any = {}
+      try {
+        const text = await res.text()
+        if (text && text.length > 0) data = JSON.parse(text)
+      } catch (e) {
+        log.push(`Pre-sync ${t.name}: response parse error — ${e}`)
+        continue
+      }
+      log.push(`Pre-sync ${t.name}: ${JSON.stringify(data.synced?.[0] ?? data)}`)
     } catch (e) {
       log.push(`Pre-sync failed (${t.name}): ${e}`)
     }
