@@ -114,7 +114,7 @@ async function syncMatches(
   const allMatches: any[] = []
 
   // Scarica tutte le partite completate (pagina fino a 10 pagine)
-  for (let page = 0; page < 10; page++) {
+  for (let page = 0; page < 2; page++) {
     const res = await fetch(
       `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/last/${page}`,
       { headers: HEADERS(apiKey) }
@@ -126,7 +126,7 @@ async function syncMatches(
   }
 
   // Partite future/in corso
-  for (let page = 0; page < 5; page++) {
+  for (let page = 0; page < 1; page++) {
     const res = await fetch(
       `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/next/${page}`,
       { headers: HEADERS(apiKey) }
