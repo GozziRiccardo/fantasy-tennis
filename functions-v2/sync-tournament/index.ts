@@ -100,7 +100,11 @@ async function getCurrentSeasonId(apiKey: string, tournamentId: number | string)
   const url = `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/seasons`
   const res = await fetch(url, { headers: HEADERS(apiKey) })
   if (!res.ok) return null
-  const json = await res.json()
+  const json = await safeJsonFromResponse<Record<string, unknown>>(
+    res,
+    `seasons:tournament:${tournamentId}`,
+    { seasons: [] },
+  )
   // Prende la stagione più recente
   const seasons: any[] = json.seasons ?? []
   const current = seasons.find(s => s.year === 2026) ?? seasons[0]
@@ -122,8 +126,20 @@ async function syncMatches(
     fetch(`https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/next/0`, { headers: HEADERS(apiKey) }),
   ])
 
-  const lastJson = lastRes.ok ? await lastRes.json() : {}
-  const nextJson = nextRes.ok ? await nextRes.json() : {}
+  const lastJson = lastRes.ok
+    ? await safeJsonFromResponse<Record<string, unknown>>(
+      lastRes,
+      `events:last:tournament:${tournamentId}:season:${seasonId}:page:0`,
+      { events: [] },
+    )
+    : { events: [] }
+  const nextJson = nextRes.ok
+    ? await safeJsonFromResponse<Record<string, unknown>>(
+      nextRes,
+      `events:next:tournament:${tournamentId}:season:${seasonId}:page:0`,
+      { events: [] },
+    )
+    : { events: [] }
 
   const allMatches: any[] = [
     ...(lastJson.events ?? []),
@@ -237,6 +253,38 @@ function mapStatus(type: string): 'scheduled' | 'live' | 'completed' {
   if (type === 'finished')     return 'completed'
   if (type === 'inprogress')   return 'live'
   return 'scheduled'
+}
+
+async function safeResponseText(res: Response, context: string): Promise<string> {
+  try {
+    const text = await res.text()
+    if (!text || text.trim().length === 0) {
+      console.warn(`[sync-tournament] Empty response body for ${context}`)
+      return ''
+    }
+    return text
+  } catch (e) {
+    console.error(`[sync-tournament] Failed reading response body for ${context}:`, e)
+    return ''
+  }
+}
+
+async function safeJsonFromResponse<T extends Record<string, unknown>>(
+  res: Response,
+  context: string,
+  fallback: T,
+): Promise<T> {
+  const text = await safeResponseText(res, context)
+  if (!text) return fallback
+
+  try {
+    const json = JSON.parse(text)
+    return (json ?? fallback) as T
+  } catch (e) {
+    console.error(`[sync-tournament] Malformed JSON for ${context}:`, e)
+    console.error(`[sync-tournament] JSON preview for ${context}: ${text.slice(0, 300)}`)
+    return fallback
+  }
 }
 
 function jsonOk(data: unknown) {

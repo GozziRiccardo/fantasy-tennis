@@ -155,8 +155,44 @@ async function fetchTournamentMatches(apiKey: string, tournamentId: string): Pro
     },
   })
   if (!res.ok) throw new Error(`API-Tennis error: ${res.status}`)
-  const json = await res.json()
+  const json = await safeJsonFromResponse<Record<string, unknown>>(
+    res,
+    `api-tennis:matches:tournament:${tournamentId}`,
+    {},
+  )
   return (json.result ?? json.response ?? []) as ApiMatch[]
+}
+
+async function safeResponseText(res: Response, context: string): Promise<string> {
+  try {
+    const text = await res.text()
+    if (!text || text.trim().length === 0) {
+      console.warn(`[sync-tournament] Empty response body for ${context}`)
+      return ''
+    }
+    return text
+  } catch (e) {
+    console.error(`[sync-tournament] Failed reading response body for ${context}:`, e)
+    return ''
+  }
+}
+
+async function safeJsonFromResponse<T extends Record<string, unknown>>(
+  res: Response,
+  context: string,
+  fallback: T,
+): Promise<T> {
+  const text = await safeResponseText(res, context)
+  if (!text) return fallback
+
+  try {
+    const json = JSON.parse(text)
+    return (json ?? fallback) as T
+  } catch (e) {
+    console.error(`[sync-tournament] Malformed JSON for ${context}:`, e)
+    console.error(`[sync-tournament] JSON preview for ${context}: ${text.slice(0, 300)}`)
+    return fallback
+  }
 }
 
 async function upsertPlayer(supabase: ReturnType<typeof createClient>, apiPlayerId: string, name: string) {
