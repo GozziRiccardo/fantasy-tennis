@@ -35,13 +35,12 @@ Deno.serve(async (req) => {
 
   let body: { tournament_id?: string } = {}
   if (req.method === 'POST') {
-    try {
-      body = await req.json()
-      console.log('[sync-tournament] Parsed POST body successfully.')
-    } catch (e) {
-      console.error('[sync-tournament] Failed to parse POST JSON body, defaulting to empty object:', e)
-      body = {}
-    }
+    body = await safeJsonFromRequest<{ tournament_id?: string }>(
+      req,
+      'request:body',
+      {},
+    )
+    console.log('[sync-tournament] Parsed POST body safely.')
   }
 
   const requestedId = body.tournament_id
@@ -284,6 +283,39 @@ async function safeResponseText(res: Response, context: string): Promise<string>
   } catch (e) {
     console.error(`[sync-tournament] Failed reading response body for ${context}:`, e)
     return ''
+  }
+}
+
+async function safeRequestText(req: Request, context: string): Promise<string> {
+  try {
+    const text = await req.text()
+    if (!text || text.trim().length === 0) {
+      console.warn(`[sync-tournament] Empty request body for ${context}`)
+      return ''
+    }
+    return text
+  } catch (e) {
+    console.error(`[sync-tournament] Failed reading request body for ${context}:`, e)
+    return ''
+  }
+}
+
+async function safeJsonFromRequest<T extends Record<string, unknown>>(
+  req: Request,
+  context: string,
+  fallback: T,
+): Promise<T> {
+  const text = await safeRequestText(req, context)
+  if (!text) return fallback
+
+  try {
+    const json = JSON.parse(text)
+    return (json ?? fallback) as T
+  } catch (e) {
+    console.error(`[sync-tournament] Malformed request JSON for ${context}:`, e)
+    const preview = text.slice(0, 300)
+    console.error(`[sync-tournament] Request JSON preview for ${context}: ${preview}`)
+    return fallback
   }
 }
 
