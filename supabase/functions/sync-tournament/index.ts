@@ -81,10 +81,30 @@ Deno.serve(async (req) => {
         continue
       }
 
-      const seasonId = await getCurrentSeasonId(apiKey, t.api_tournament_id)
-      if (!seasonId) {
-        results.push({ tournament: t.name, skipped: 'Could not find season' })
-        continue
+      let seasonId: string | null = t.api_season_id ? String(t.api_season_id) : null
+
+      if (seasonId) {
+        console.log(`[sync-tournament] Using cached api_season_id=${seasonId} for tournament=${t.name}`)
+      } else {
+        const fetchedSeasonId = await getCurrentSeasonId(apiKey, t.api_tournament_id)
+        if (!fetchedSeasonId) {
+          results.push({ tournament: t.name, skipped: 'Could not find season' })
+          continue
+        }
+
+        seasonId = String(fetchedSeasonId)
+        const { error: seasonUpdateError } = await supabase
+          .from('tournaments')
+          .update({ api_season_id: String(seasonId) })
+          .eq('id', t.id)
+
+        if (seasonUpdateError) {
+          console.warn(
+            `[sync-tournament] Failed to persist api_season_id=${seasonId} for tournament=${t.name}: ${seasonUpdateError.message}`,
+          )
+        } else {
+          console.log(`[sync-tournament] Saved api_season_id=${seasonId} for tournament=${t.name}`)
+        }
       }
 
       const summary = await syncMatches(supabase, apiKey, t, t.api_tournament_id, seasonId, !!forcedId)
@@ -152,72 +172,37 @@ async function syncMatches(
   apiKey: string,
   tournament: any,
   tournamentId: string,
-  seasonId: number,
+  seasonId: string,
   isForced: boolean,
 ) {
   const allMatches: any[] = []
 
   console.log(`[sync-tournament] syncMatches start: tournament=${tournament.name}, tournamentId=${tournamentId}, seasonId=${seasonId}, forced=${isForced}`)
 
-  // Scarica tutte le partite completate (pagina fino a 10 pagine)
-  for (let page = 0; page < 2; page++) {
-    const url = `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/last/${page}`
-    console.log(`[sync-tournament] Fetching last events page=${page}`)
+  const lastEventsUrl = `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/last/0`
+  console.log('[sync-tournament] Fetching last events page=0')
 
-    let res: Response
-    try {
-      res = await fetchWithTimeout(
-        url,
-        { headers: HEADERS(apiKey) },
-        5000
-      )
-    } catch (e) {
-      console.error(`[sync-tournament] Network/timeout error on last events page=${page}:`, e)
-      break
-    }
-
-    if (!res.ok) break
-    const json = await safeJsonFromResponse(
-      res,
-      `events:last:tournament:${tournamentId}:season:${seasonId}:page:${page}`,
-      { events: [] },
+  let res: Response
+  try {
+    res = await fetchWithTimeout(
+      lastEventsUrl,
+      { headers: HEADERS(apiKey) },
+      6000,
     )
-    const events: any[] = json.events ?? []
-
-    console.log(`[sync-tournament] last events page=${page} -> ${events.length} events`)
-    if (events.length === 0) break
-    allMatches.push(...events)
+  } catch (e) {
+    console.error('[sync-tournament] Network/timeout error on last events page=0:', e)
+    return { matches_fetched: 0, matches_processed: 0 }
   }
 
-  // Partite future/in corso
-  for (let page = 0; page < 1; page++) {
-    const url = `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/next/${page}`
-    console.log(`[sync-tournament] Fetching next events page=${page}`)
-
-    let res: Response
-    try {
-      res = await fetchWithTimeout(
-        url,
-        { headers: HEADERS(apiKey) },
-        5000
-      )
-    } catch (e) {
-      console.error(`[sync-tournament] Network/timeout error on next events page=${page}:`, e)
-      break
-    }
-
-    if (!res.ok) break
-    const json = await safeJsonFromResponse(
-      res,
-      `events:next:tournament:${tournamentId}:season:${seasonId}:page:${page}`,
-      { events: [] },
-    )
-    const events: any[] = json.events ?? []
-
-    console.log(`[sync-tournament] next events page=${page} -> ${events.length} events`)
-    if (events.length === 0) break
-    allMatches.push(...events)
-  }
+  if (!res.ok) return { matches_fetched: 0, matches_processed: 0 }
+  const json = await safeJsonFromResponse(
+    res,
+    `events:last:tournament:${tournamentId}:season:${seasonId}:page:0`,
+    { events: [] },
+  )
+  const events: any[] = json.events ?? []
+  console.log(`[sync-tournament] last events page=0 -> ${events.length} events`)
+  allMatches.push(...events)
 
   console.log(`Total matches fetched for ${tournament.name}: ${allMatches.length}`)
 
