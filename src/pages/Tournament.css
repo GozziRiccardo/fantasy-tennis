@@ -1,2 +1,73 @@
 /* Tournament.css — stili specifici della pagina Torneo */
 /* Gli stili del tabellone sono in TournamentBracket.css */
+
+.tournament-standings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.standing-card {
+  border: 1px solid;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.standing-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.standing-medal { font-size: 18px; }
+
+.standing-username {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.standing-points {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.standing-points small {
+  font-size: 10px;
+  color: var(--text2);
+  font-weight: 400;
+}
+
+.standing-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.standing-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.standing-pick-name {
+  flex: 1;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.standing-captain {
+  font-size: 10px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
