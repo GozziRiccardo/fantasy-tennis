@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import './MyTeam.css'
 
+const USER_COLORS = [
+  { bg: 'rgba(200,240,0,0.15)', border: 'rgba(200,240,0,0.5)', text: '#C8F000' },
+  { bg: 'rgba(255,107,43,0.15)', border: 'rgba(255,107,43,0.5)', text: '#FF6B2B' },
+  { bg: 'rgba(100,180,255,0.15)', border: 'rgba(100,180,255,0.5)', text: '#64B4FF' },
+  { bg: 'rgba(200,120,255,0.15)', border: 'rgba(200,120,255,0.5)', text: '#C878FF' },
+]
+
 function computeMultiplier(ranking) {
   return Math.ceil(ranking / 5)
 }
@@ -15,6 +22,7 @@ export default function MyTeam({ session }) {
   const [credits,  setCredits]  = useState(0)
   const [pointsMap, setPointsMap] = useState({}) // atp_player_id → total_points
   const [totalPointsMap, setTotalPointsMap] = useState({})
+  const [ownerMap, setOwnerMap] = useState({})
 
   useEffect(() => {
     async function load() {
@@ -36,27 +44,45 @@ export default function MyTeam({ session }) {
       setRoster(rosterData ?? [])
       setAllAtp(atp ?? [])
 
-      // Carica i punti totali per ogni giocatore di questa rosa
-      // tournament_scores → picks → atp_player_id
+      // Rose di tutti gli utenti
+      const { data: allRosters } = await supabase
+        .from('roster_players')
+        .select('user_id, atp_player_id, profiles(username)')
+
+      // Mappa atp_player_id → { username, color }
+      const nextOwnerMap = {}
+      const usernameColorMap = {}
+      ;(allRosters ?? []).forEach(r => {
+        const username = r.profiles?.username ?? 'Unknown'
+        if (!usernameColorMap[r.user_id]) {
+          usernameColorMap[r.user_id] = USER_COLORS[Object.keys(usernameColorMap).length % USER_COLORS.length]
+        }
+        nextOwnerMap[r.atp_player_id] = {
+          username,
+          color: usernameColorMap[r.user_id],
+          isMe: r.user_id === session.user.id,
+        }
+      })
+      setOwnerMap(nextOwnerMap)
+
+      // Carica i punti da schierato per ogni giocatore su tutti gli utenti
       const { data: scores } = await supabase
         .from('tournament_scores')
         .select(`
           total_points,
           picks (
-            atp_player_id,
-            user_id
+            atp_player_id
           )
         `)
-        .eq('picks.user_id', session.user.id)
 
       // Somma i punti per giocatore
-      const map = {}
+      const scheduledMap = {}
       ;(scores ?? []).forEach(s => {
         const pid = s.picks?.atp_player_id
         if (!pid) return
-        map[pid] = (map[pid] ?? 0) + (s.total_points ?? 0)
+        scheduledMap[pid] = (scheduledMap[pid] ?? 0) + (s.total_points ?? 0)
       })
-      setPointsMap(map)
+      setPointsMap(scheduledMap)
       const { data: totalScores } = await supabase.rpc('get_player_total_points')
       const totalMap = {}
       ;(totalScores ?? []).forEach(s => {
@@ -71,8 +97,7 @@ export default function MyTeam({ session }) {
 
   if (loading) return <div className="loading-screen">Caricamento…</div>
 
-  const rosterIds = new Set(roster.map(r => r.atp_player_id))
-  const totalRosterPoints = Object.values(pointsMap).reduce((a, b) => a + b, 0)
+  const totalRosterPoints = roster.reduce((sum, r) => sum + (pointsMap[r.atp_player_id] ?? 0), 0)
 
   return (
     <div className="page">
@@ -149,21 +174,43 @@ export default function MyTeam({ session }) {
                 <th>Prezzo</th>
                 <th>Molt.</th>
                 <th>In rosa</th>
-                <th>Punti</th>
+                <th>Punti totali</th>
+                <th>Da schierato</th>
               </tr>
             </thead>
             <tbody>
               {allAtp.map(p => {
-                const pts = pointsMap[p.id]
+                const totalPts = totalPointsMap[p.id] ?? 0
+                const scheduledPts = pointsMap[p.id] ?? 0
                 return (
-                  <tr key={p.id} className={rosterIds.has(p.id) ? 'row-owned' : ''}>
+                  <tr key={p.id} className={ownerMap[p.id]?.isMe ? 'row-owned' : ''}>
                     <td className="mono">#{p.ranking}</td>
                     <td className="player-col">{p.name}</td>
                     <td className="mono price-col">{p.price}</td>
                     <td className="mono">×{computeMultiplier(p.ranking)}</td>
-                    <td>{rosterIds.has(p.id) ? <span className="in-roster-dot">●</span> : null}</td>
-                    <td className="mono" style={{ color: pts > 0 ? 'var(--accent)' : 'var(--text3)' }}>
-                      {pts > 0 ? `+${pts}` : '—'}
+                    <td>
+                      {ownerMap[p.id] ? (
+                        <span
+                          className="mono"
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 500,
+                            color: ownerMap[p.id].color.text,
+                            background: ownerMap[p.id].color.bg,
+                            border: `1px solid ${ownerMap[p.id].color.border}`,
+                            padding: '2px 8px',
+                            borderRadius: '100px',
+                          }}
+                        >
+                          {ownerMap[p.id].username}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="mono" style={{ color: totalPts > 0 ? 'var(--accent)' : 'var(--text3)' }}>
+                      {totalPts > 0 ? `+${totalPts}` : '—'}
+                    </td>
+                    <td className="mono" style={{ color: scheduledPts > 0 ? 'var(--text2)' : 'var(--text3)' }}>
+                      {scheduledPts > 0 ? `+${scheduledPts}` : '—'}
                     </td>
                   </tr>
                 )
