@@ -103,6 +103,20 @@ async function getCurrentSeasonId(apiKey: string, tournamentId: string): Promise
   return season?.id ?? null
 }
 
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 5000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal })
+    clearTimeout(timer)
+    return res
+  } catch (e) {
+    clearTimeout(timer)
+    throw e
+  }
+}
+
 async function syncMatches(
   supabase: ReturnType<typeof createClient>,
   apiKey: string,
@@ -115,9 +129,10 @@ async function syncMatches(
 
   // Scarica tutte le partite completate (pagina fino a 10 pagine)
   for (let page = 0; page < 2; page++) {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/last/${page}`,
-      { headers: HEADERS(apiKey) }
+      { headers: HEADERS(apiKey) },
+      5000
     )
     if (!res.ok) break
     const events = (await res.json()).events ?? []
@@ -127,9 +142,10 @@ async function syncMatches(
 
   // Partite future/in corso
   for (let page = 0; page < 1; page++) {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/next/${page}`,
-      { headers: HEADERS(apiKey) }
+      { headers: HEADERS(apiKey) },
+      5000
     )
     if (!res.ok) break
     const events = (await res.json()).events ?? []
