@@ -36,6 +36,7 @@ function isBracketAvailableForTournament(tournament) {
 export default function Tournament({ session }) {
   const [tournament, setTournament] = useState(null)
   const [tournamentStandings, setTournamentStandings] = useState([])
+  const [liveScores, setLiveScores] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -62,6 +63,7 @@ export default function Tournament({ session }) {
 
     if (!t) {
       setTournamentStandings([])
+      setLiveScores([])
       setLoading(false)
       return
     }
@@ -76,10 +78,10 @@ export default function Tournament({ session }) {
       `)
       .eq('tournament_id', t.id)
 
-    const { data: allScores } = await supabase
-      .from('tournament_scores')
-      .select('total_points, picks(user_id)')
-      .eq('picks.tournament_id', t.id)
+    // Live scores from SQL function
+    const { data: liveScores } = await supabase
+      .rpc('compute_live_tournament_scores', { p_tournament_id: t.id })
+    setLiveScores(liveScores ?? [])
 
     // Check if picks are locked
     const picksLocked = (allPicks ?? []).some((p) => p.locked)
@@ -94,12 +96,10 @@ export default function Tournament({ session }) {
         byUser[uid].picks.push(p)
       })
 
-      // Add points from scores
-      ;(allScores ?? []).forEach((s) => {
-        const uid = s.picks?.user_id
-        if (uid && byUser[uid]) {
-          byUser[uid].points += s.total_points ?? 0
-        }
+      // Add points from live scores
+      ;(liveScores ?? []).forEach((s) => {
+        const uid = s.user_id
+        if (byUser[uid]) byUser[uid].points += s.total_points ?? 0
       })
 
       // Sort by points descending
@@ -165,20 +165,25 @@ export default function Tournament({ session }) {
                   </span>
                 </div>
                 <div className="standing-picks">
-                  {user.picks.map((p) => (
-                    <div key={p.atp_player_id} className="standing-pick">
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--text3)' }}>
-                        #{p.atp_players?.ranking}
-                      </span>
-                      <span className="standing-pick-name">{p.atp_players?.name}</span>
-                      {p.is_captain && (
-                        <span className="standing-captain" style={{ color: color.text }}>★ C</span>
-                      )}
-                      <span className="mono" style={{ fontSize: 10, color: color.text }}>
-                        ×{p.multiplier}
-                      </span>
-                    </div>
-                  ))}
+                  {user.picks.map(p => {
+                    const score = (liveScores ?? []).find(
+                      s => s.user_id === user.uid && s.atp_player_id === p.atp_player_id
+                    )
+                    return (
+                      <div key={p.atp_player_id} className="standing-pick">
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--text3)' }}>
+                          #{p.atp_players?.ranking}
+                        </span>
+                        <span className="standing-pick-name">{p.atp_players?.name}</span>
+                        {p.is_captain && (
+                          <span className="standing-captain" style={{ color: color.text }}>★</span>
+                        )}
+                        <span className="mono" style={{ fontSize: 11, color: color.text }}>
+                          +{score?.total_points ?? 0}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
