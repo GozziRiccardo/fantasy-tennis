@@ -14,6 +14,7 @@ export default function MyTeam({ session }) {
   const [loading,  setLoading]  = useState(true)
   const [credits,  setCredits]  = useState(0)
   const [pointsMap, setPointsMap] = useState({}) // atp_player_id → total_points
+  const [totalPointsMap, setTotalPointsMap] = useState({})
 
   useEffect(() => {
     async function load() {
@@ -56,6 +57,12 @@ export default function MyTeam({ session }) {
         map[pid] = (map[pid] ?? 0) + (s.total_points ?? 0)
       })
       setPointsMap(map)
+      const { data: totalScores } = await supabase.rpc('get_player_total_points')
+      const totalMap = {}
+      ;(totalScores ?? []).forEach(s => {
+        totalMap[s.atp_player_id] = s.total_points ?? 0
+      })
+      setTotalPointsMap(totalMap)
 
       setLoading(false)
     }
@@ -92,6 +99,7 @@ export default function MyTeam({ session }) {
             const p    = r.atp_players
             const mult = computeMultiplier(p.ranking)
             const pts  = pointsMap[p.id] ?? 0
+            const totalPts = totalPointsMap[p.id] ?? 0
             return (
               <div key={r.id} className="player-card card card-sm">
                 <div className="player-card-top">
@@ -105,13 +113,20 @@ export default function MyTeam({ session }) {
                 <div className="player-card-bottom">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="price-paid mono">{r.price_paid} crediti</span>
-                    {pts > 0 ? (
-                      <span className="player-pts mono">
-                        +{pts} <span style={{ fontSize: 10, color: 'var(--text2)' }}>pts</span>
+                  </div>
+                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Da schierato</span>
+                      <span className="mono" style={{ color: pts > 0 ? 'var(--accent)' : 'var(--text3)', fontSize: 12, fontWeight: 500 }}>
+                        {pts > 0 ? `+${pts}` : '—'}
                       </span>
-                    ) : (
-                      <span className="player-pts-zero mono">— pts</span>
-                    )}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Totali</span>
+                      <span className="mono" style={{ color: totalPts > 0 ? 'var(--text2)' : 'var(--text3)', fontSize: 12 }}>
+                        {totalPts > 0 ? `+${totalPts}` : '—'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
