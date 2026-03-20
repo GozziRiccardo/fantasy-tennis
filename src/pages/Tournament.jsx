@@ -139,16 +139,18 @@ export default function Tournament({ session }) {
       .select(`
         atp_player_id, is_winner,
         atp_players ( id, name, ranking ),
-        matches!inner ( tournament_id, status, round_number )
+        matches!inner ( tournament_id, status, round_number, round_name )
       `)
       .eq('matches.tournament_id', t.id)
       .eq('matches.status', 'completed')
-      .lt('matches.round_number', 10)
 
     // Count wins per player
     const winsMap = {}
     ;(matchResults ?? []).forEach(mp => {
       if (!mp.is_winner) return
+      // Escludi qualificazioni
+      const roundName = mp.matches?.round_name ?? ''
+      if (roundName.toLowerCase().includes('qualif')) return
       const pid = mp.atp_player_id
       if (!winsMap[pid]) winsMap[pid] = {
         player: mp.atp_players,
