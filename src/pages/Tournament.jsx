@@ -143,6 +143,7 @@ export default function Tournament({ session }) {
       `)
       .eq('matches.tournament_id', t.id)
       .eq('matches.status', 'completed')
+      .lt('matches.round_number', 10)
 
     // Count wins per player
     const winsMap = {}
@@ -320,7 +321,7 @@ function ScoresView({ playerScores, allPicks, users }) {
                 <span className="score-rank mono">#{i + 1}</span>
                 <span className="score-name">{s.player.name}</span>
                 <span className="score-ranking mono" style={{ color: 'var(--text3)', fontSize: 11 }}>
-                  ATP #{s.player.ranking}
+                  {s.player.ranking >= 200 ? 'fuori top 100' : `ATP #${s.player.ranking}`}
                 </span>
                 <span className="score-pts mono">{s.wins}V · +{s.points}pts</span>
               </div>
