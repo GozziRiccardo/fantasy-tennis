@@ -58,6 +58,7 @@ Deno.serve(async (req) => {
     if (error) return jsonError(error.message, 500)
     if (!data) return jsonError(`Tournament not found: ${requestedId}`, 404)
     tournamentsToSync = [data]
+    console.log(`[sync-tournament] RAW tournament data: ${JSON.stringify(data)}`)
   } else {
     console.log('[sync-tournament] No forced tournament_id provided. Syncing all ongoing tournaments.')
     const { data, error } = await supabase
