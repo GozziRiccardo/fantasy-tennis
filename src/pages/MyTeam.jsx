@@ -2,14 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { getUserColorMap } from '../utils/userColors'
 import './MyTeam.css'
-
-const USER_COLORS = [
-  { bg: 'rgba(200,240,0,0.15)', border: 'rgba(200,240,0,0.5)', text: '#C8F000' },
-  { bg: 'rgba(255,107,43,0.15)', border: 'rgba(255,107,43,0.5)', text: '#FF6B2B' },
-  { bg: 'rgba(100,180,255,0.15)', border: 'rgba(100,180,255,0.5)', text: '#64B4FF' },
-  { bg: 'rgba(200,120,255,0.15)', border: 'rgba(200,120,255,0.5)', text: '#C878FF' },
-]
 
 function computeMultiplier(ranking) {
   return Math.ceil(ranking / 5)
@@ -52,15 +46,12 @@ export default function MyTeam({ session }) {
 
       // Mappa atp_player_id → { username, color }
       const nextOwnerMap = {}
-      const usernameColorMap = {}
+      const colorMap = await getUserColorMap(supabase)
       ;(allRosters ?? []).forEach(r => {
         const username = r.profiles?.username ?? 'Unknown'
-        if (!usernameColorMap[r.user_id]) {
-          usernameColorMap[r.user_id] = USER_COLORS[Object.keys(usernameColorMap).length % USER_COLORS.length]
-        }
         nextOwnerMap[r.atp_player_id] = {
           username,
-          color: usernameColorMap[r.user_id],
+          color: colorMap[r.user_id],
           isMe: r.user_id === session.user.id,
         }
       })

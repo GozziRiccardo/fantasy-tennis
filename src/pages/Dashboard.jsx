@@ -1,14 +1,8 @@
 // src/pages/Dashboard.jsx — aggiornato con le rose di tutti
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { getUserColorMap } from '../utils/userColors'
 import './Dashboard.css'
-
-const USER_COLORS = [
-  { text: '#C8F000', bg: 'rgba(200,240,0,0.08)',  border: 'rgba(200,240,0,0.2)'  },
-  { text: '#FF6B2B', bg: 'rgba(255,107,43,0.08)', border: 'rgba(255,107,43,0.2)' },
-  { text: '#64B4FF', bg: 'rgba(100,180,255,0.08)',border: 'rgba(100,180,255,0.2)' },
-  { text: '#C878FF', bg: 'rgba(200,120,255,0.08)',border: 'rgba(200,120,255,0.2)' },
-]
 
 function tournamentBadge(type, status) {
   if (status === 'ongoing')   return <span className="badge badge-live">● Live</span>
@@ -27,6 +21,7 @@ export default function Dashboard({ session }) {
   const [liveStandings, setLiveStandings] = useState([])
   const [tournaments, setTournaments] = useState([])
   const [allRosters,  setAllRosters]  = useState([])  // rose di tutti
+  const [colorMap, setColorMap] = useState({})
   const [loading,     setLoading]     = useState(true)
 
   useEffect(() => {
@@ -46,6 +41,7 @@ export default function Dashboard({ session }) {
       ])
       setLeaderboard(lb ?? [])
       setTournaments(tv ?? [])
+      setColorMap(await getUserColorMap(supabase))
 
       // Controlla se c'è un torneo in corso
       const { data: ongoingTournament } = await supabase
@@ -97,12 +93,6 @@ export default function Dashboard({ session }) {
   const myRank   = leaderboard.findIndex(u => u.user_id === session.user.id) + 1
   const me       = leaderboard.find(u => u.user_id === session.user.id)
 
-  // Assegna colore a ciascun utente in base all'ordine in leaderboard
-  const userColorMap = {}
-  leaderboard.forEach((u, i) => {
-    userColorMap[u.user_id] = USER_COLORS[i % USER_COLORS.length]
-  })
-
   if (loading) return <div className="loading-screen">Caricamento…</div>
 
   return (
@@ -131,7 +121,7 @@ export default function Dashboard({ session }) {
               {(liveStandings.length > 0 ? liveStandings : leaderboard).map((u, i) => {
                 const isMe   = u.user_id === session.user.id
                 const medals = ['🥇', '🥈', '🥉']
-                const color  = userColorMap[u.user_id]
+                const color  = colorMap[u.user_id]
                 return (
                   <div key={u.user_id} className={`lb-row ${isMe ? 'lb-row-me' : ''}`}>
                     <div className="lb-pos mono">
@@ -169,17 +159,17 @@ export default function Dashboard({ session }) {
             <div style={{ marginTop: 20 }}>
               <h2 className="display" style={{ fontSize: 26, marginBottom: 14 }}>Rose</h2>
               <div className="all-rosters-grid">
-                {allRosters.map((roster, i) => {
-                  const color = userColorMap[roster.uid] ?? USER_COLORS[i % USER_COLORS.length]
+                {allRosters.map((roster) => {
+                  const color = colorMap[roster.uid]
                   const isMe  = roster.uid === session.user.id
                   return (
                     <div
                       key={roster.uid}
                       className="roster-card card card-sm"
-                      style={{ borderColor: isMe ? color.border : undefined }}
+                      style={{ borderColor: isMe ? color?.border : undefined }}
                     >
-                      <div className="roster-card-header" style={{ borderColor: color.border }}>
-                        <div className="roster-dot" style={{ background: color.text }} />
+                      <div className="roster-card-header" style={{ borderColor: color?.border }}>
+                        <div className="roster-dot" style={{ background: color?.text }} />
                         <span className="roster-username">{roster.username}</span>
                         {isMe && <span className="lb-you">tu</span>}
                         <span className="mono" style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 'auto' }}>

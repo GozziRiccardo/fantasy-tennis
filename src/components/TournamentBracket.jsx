@@ -2,14 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { getUserColorMap } from '../utils/userColors'
 import './TournamentBracket.css'
-
-const USER_COLORS = [
-  { bg: 'rgba(200,240,0,0.15)',  border: 'rgba(200,240,0,0.5)',  text: '#C8F000' },
-  { bg: 'rgba(255,107,43,0.15)', border: 'rgba(255,107,43,0.5)', text: '#FF6B2B' },
-  { bg: 'rgba(100,180,255,0.15)',border: 'rgba(100,180,255,0.5)',text: '#64B4FF' },
-  { bg: 'rgba(200,120,255,0.15)',border: 'rgba(200,120,255,0.5)',text: '#C878FF' },
-]
 
 const ROUND_LABELS_IN_ORDER = [
   'Qualificazioni',
@@ -116,8 +110,9 @@ export default function TournamentBracket({ tournament, session }) {
 
     setMatches(m ?? [])
     setAllPicks(picks ?? [])
-    const userList = (profiles ?? []).map((p, i) => ({
-      id: p.id, username: p.username, color: USER_COLORS[i % USER_COLORS.length],
+    const nextColorMap = await getUserColorMap(supabase)
+    const userList = (profiles ?? []).map((p) => ({
+      id: p.id, username: p.username, color: nextColorMap[p.id],
     }))
     setUsers(userList)
     setLoading(false)

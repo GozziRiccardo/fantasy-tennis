@@ -3,14 +3,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import TournamentBracket from '../components/TournamentBracket'
+import { getUserColorMap } from '../utils/userColors'
 import './Tournament.css'
-
-const USER_COLORS = [
-  { bg: 'rgba(200,240,0,0.15)', border: 'rgba(200,240,0,0.5)', text: '#C8F000' },
-  { bg: 'rgba(255,107,43,0.15)', border: 'rgba(255,107,43,0.5)', text: '#FF6B2B' },
-  { bg: 'rgba(100,180,255,0.15)', border: 'rgba(100,180,255,0.5)', text: '#64B4FF' },
-  { bg: 'rgba(200,120,255,0.15)', border: 'rgba(200,120,255,0.5)', text: '#C878FF' },
-]
 
 function formatDate(d) {
   return new Date(d).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
@@ -37,6 +31,7 @@ export default function Tournament({ session }) {
   const [tournament, setTournament] = useState(null)
   const [tournamentStandings, setTournamentStandings] = useState([])
   const [liveScores, setLiveScores] = useState([])
+  const [colorMap, setColorMap] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -60,6 +55,7 @@ export default function Tournament({ session }) {
     const t = ongoing ?? upcoming ?? null
 
     setTournament(t)
+    setColorMap(await getUserColorMap(supabase))
 
     if (!t) {
       setTournamentStandings([])
@@ -145,19 +141,19 @@ export default function Tournament({ session }) {
       {tournamentStandings.length > 0 && (
         <div className="tournament-standings">
           {tournamentStandings.map((user, rank) => {
-            const color = USER_COLORS[rank % USER_COLORS.length]
+            const color = colorMap[user.uid]
             const medals = ['🥇', '🥈', '🥉']
             return (
               <div
                 key={user.uid}
                 className="standing-card"
-                style={{ borderColor: color.border, background: color.bg }}
+                style={{ borderColor: color?.border, background: color?.bg }}
               >
                 <div className="standing-header">
                   <span className="standing-medal">
                     {rank < 3 ? medals[rank] : `#${rank + 1}`}
                   </span>
-                  <span className="standing-username" style={{ color: color.text }}>
+                  <span className="standing-username" style={{ color: color?.text }}>
                     {user.username}
                   </span>
                   <span className="standing-points mono">
@@ -176,9 +172,9 @@ export default function Tournament({ session }) {
                         </span>
                         <span className="standing-pick-name">{p.atp_players?.name}</span>
                         {p.is_captain && (
-                          <span className="standing-captain" style={{ color: color.text }}>★</span>
+                          <span className="standing-captain" style={{ color: color?.text }}>★</span>
                         )}
-                        <span className="mono" style={{ fontSize: 11, color: color.text }}>
+                        <span className="mono" style={{ fontSize: 11, color: color?.text }}>
                           +{score?.total_points ?? 0}
                         </span>
                       </div>
