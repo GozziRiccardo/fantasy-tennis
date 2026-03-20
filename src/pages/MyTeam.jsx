@@ -31,7 +31,6 @@ export default function MyTeam({ session }) {
         supabase
           .from('atp_players')
           .select('*')
-          .lte('ranking', 100)
           .order('ranking'),
       ])
 
@@ -130,6 +129,47 @@ export default function MyTeam({ session }) {
   if (loading) return <div className="loading-screen">Caricamento…</div>
 
   const totalRosterPoints = roster.reduce((sum, r) => sum + (pointsMap[r.atp_player_id] ?? 0), 0)
+  const top100 = allAtp.filter(p => p.ranking <= 100)
+  const outsideTop100 = allAtp
+    .filter(p => p.ranking > 100 && ownerMap[p.id])
+    .sort((a, b) => a.ranking - b.ranking)
+
+  function renderPlayerRow(p) {
+    const totalPts = totalPointsMap[p.id] ?? 0
+    const scheduledPts = pointsMap[p.id] ?? 0
+    return (
+      <tr key={p.id} className={ownerMap[p.id]?.isMe ? 'row-owned' : ''}>
+        <td className="mono">#{p.ranking}</td>
+        <td className="player-col">{p.name}</td>
+        <td className="mono price-col">{p.price}</td>
+        <td className="mono">×{computeMultiplier(p.ranking)}</td>
+        <td>
+          {ownerMap[p.id] ? (
+            <span
+              className="mono"
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                color: ownerMap[p.id].color.text,
+                background: ownerMap[p.id].color.bg,
+                border: `1px solid ${ownerMap[p.id].color.border}`,
+                padding: '2px 8px',
+                borderRadius: '100px',
+              }}
+            >
+              {ownerMap[p.id].username}
+            </span>
+          ) : null}
+        </td>
+        <td className="mono" style={{ color: totalPts > 0 ? 'var(--accent)' : 'var(--text3)' }}>
+          {totalPts > 0 ? `+${totalPts}` : '—'}
+        </td>
+        <td className="mono" style={{ color: scheduledPts > 0 ? 'var(--text2)' : 'var(--text3)' }}>
+          {scheduledPts > 0 ? `+${scheduledPts}` : '—'}
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <div className="page">
@@ -222,42 +262,25 @@ export default function MyTeam({ session }) {
               </tr>
             </thead>
             <tbody>
-              {allAtp.map(p => {
-                const totalPts = totalPointsMap[p.id] ?? 0
-                const scheduledPts = pointsMap[p.id] ?? 0
-                return (
-                  <tr key={p.id} className={ownerMap[p.id]?.isMe ? 'row-owned' : ''}>
-                    <td className="mono">#{p.ranking}</td>
-                    <td className="player-col">{p.name}</td>
-                    <td className="mono price-col">{p.price}</td>
-                    <td className="mono">×{computeMultiplier(p.ranking)}</td>
-                    <td>
-                      {ownerMap[p.id] ? (
-                        <span
-                          className="mono"
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 500,
-                            color: ownerMap[p.id].color.text,
-                            background: ownerMap[p.id].color.bg,
-                            border: `1px solid ${ownerMap[p.id].color.border}`,
-                            padding: '2px 8px',
-                            borderRadius: '100px',
-                          }}
-                        >
-                          {ownerMap[p.id].username}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="mono" style={{ color: totalPts > 0 ? 'var(--accent)' : 'var(--text3)' }}>
-                      {totalPts > 0 ? `+${totalPts}` : '—'}
-                    </td>
-                    <td className="mono" style={{ color: scheduledPts > 0 ? 'var(--text2)' : 'var(--text3)' }}>
-                      {scheduledPts > 0 ? `+${scheduledPts}` : '—'}
+              {top100.map(renderPlayerRow)}
+              {outsideTop100.length > 0 && (
+                <>
+                  <tr>
+                    <td colSpan={7} style={{
+                      padding: '8px 20px',
+                      fontSize: 11,
+                      color: 'var(--text3)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      borderBottom: '1px solid var(--border)',
+                      background: 'var(--bg3)',
+                    }}>
+                      Fuori dalla top 100
                     </td>
                   </tr>
-                )
-              })}
+                  {outsideTop100.map(renderPlayerRow)}
+                </>
+              )}
             </tbody>
           </table>
         </div>

@@ -33,6 +33,10 @@ export default function Tournament({ session }) {
   const [liveScores, setLiveScores] = useState([])
   const [colorMap, setColorMap] = useState({})
   const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('list') // 'list' | 'bracket' | 'scores'
+  const [playerScores, setPlayerScores] = useState([])
+  const [allPicks, setAllPicks] = useState([])
+  const [users, setUsers] = useState([])
 
   useEffect(() => {
     load()
@@ -55,17 +59,21 @@ export default function Tournament({ session }) {
     const t = ongoing ?? upcoming ?? null
 
     setTournament(t)
-    setColorMap(await getUserColorMap(supabase))
+    const nextColorMap = await getUserColorMap(supabase)
+    setColorMap(nextColorMap)
 
     if (!t) {
       setTournamentStandings([])
       setLiveScores([])
+      setPlayerScores([])
+      setAllPicks([])
+      setUsers([])
       setLoading(false)
       return
     }
 
     // Load picks + scores for all users for this tournament
-    const { data: allPicks } = await supabase
+    const { data: nextPicks } = await supabase
       .from('picks')
       .select(`
         user_id, atp_player_id, is_captain, multiplier, locked,
@@ -74,18 +82,38 @@ export default function Tournament({ session }) {
       `)
       .eq('tournament_id', t.id)
 
+    const picks = nextPicks ?? []
+    setAllPicks(picks)
+
+    const nextUsers = Array.from(
+      new Map(
+        picks.map(p => {
+          const color = nextColorMap[p.user_id] ?? { text: 'var(--text)', bg: 'transparent', border: 'var(--border)' }
+          return [
+            p.user_id,
+            {
+              id: p.user_id,
+              username: p.profiles?.username ?? p.user_id,
+              color,
+            },
+          ]
+        })
+      ).values()
+    )
+    setUsers(nextUsers)
+
     // Live scores from SQL function
-    const { data: liveScores } = await supabase
+    const { data: nextLiveScores } = await supabase
       .rpc('compute_live_tournament_scores', { p_tournament_id: t.id })
-    setLiveScores(liveScores ?? [])
+    setLiveScores(nextLiveScores ?? [])
 
     // Check if picks are locked
-    const picksLocked = (allPicks ?? []).some((p) => p.locked)
+    const picksLocked = picks.some((p) => p.locked)
 
     if (picksLocked) {
       // Group by user
       const byUser = {}
-      ;(allPicks ?? []).forEach((p) => {
+      picks.forEach((p) => {
         const uid = p.user_id
         const username = p.profiles?.username ?? uid
         if (!byUser[uid]) byUser[uid] = { uid, username, picks: [], points: 0 }
@@ -93,7 +121,7 @@ export default function Tournament({ session }) {
       })
 
       // Add points from live scores
-      ;(liveScores ?? []).forEach((s) => {
+      ;(nextLiveScores ?? []).forEach((s) => {
         const uid = s.user_id
         if (byUser[uid]) byUser[uid].points += s.total_points ?? 0
       })
@@ -104,6 +132,41 @@ export default function Tournament({ session }) {
     } else {
       setTournamentStandings([])
     }
+
+    // All matches in this tournament with player results
+    const { data: matchResults } = await supabase
+      .from('match_players')
+      .select(`
+        atp_player_id, is_winner,
+        atp_players ( id, name, ranking ),
+        matches!inner ( tournament_id, status, round_number )
+      `)
+      .eq('matches.tournament_id', t.id)
+      .eq('matches.status', 'completed')
+
+    // Count wins per player
+    const winsMap = {}
+    ;(matchResults ?? []).forEach(mp => {
+      if (!mp.is_winner) return
+      const pid = mp.atp_player_id
+      if (!winsMap[pid]) winsMap[pid] = {
+        player: mp.atp_players,
+        wins: 0,
+        points: 0,
+      }
+      winsMap[pid].wins++
+    })
+
+    // Calculate points (multiplier from atp_players.ranking)
+    const pointMult = t.type === 'slam' ? 2 : 1
+    Object.values(winsMap).forEach(entry => {
+      const mult = Math.ceil(Math.min(entry.player.ranking, 100) / 5)
+      entry.points = mult * pointMult * entry.wins
+    })
+
+    setPlayerScores(
+      Object.values(winsMap).sort((a, b) => b.points - a.points)
+    )
 
     setLoading(false)
   }
@@ -138,7 +201,28 @@ export default function Tournament({ session }) {
         </span>
       </header>
 
-      {tournamentStandings.length > 0 && (
+      <div className="view-toggle" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button
+          className={`toggle-btn ${view === 'list' ? 'active' : ''}`}
+          onClick={() => setView('list')}
+        >
+          📋 Lista
+        </button>
+        <button
+          className={`toggle-btn ${view === 'bracket' ? 'active' : ''}`}
+          onClick={() => setView('bracket')}
+        >
+          🎾 Bracket
+        </button>
+        <button
+          className={`toggle-btn ${view === 'scores' ? 'active' : ''}`}
+          onClick={() => setView('scores')}
+        >
+          📊 Scores
+        </button>
+      </div>
+
+      {view === 'list' && tournamentStandings.length > 0 && (
         <div className="tournament-standings">
           {tournamentStandings.map((user, rank) => {
             const color = colorMap[user.uid]
@@ -187,7 +271,15 @@ export default function Tournament({ session }) {
         </div>
       )}
 
-      {!showBracket ? (
+      {view === 'list' && tournamentStandings.length === 0 && (
+        <div className="card">
+          <p style={{ color: 'var(--text2)', fontSize: 14 }}>
+            La classifica sarà disponibile quando le picks verranno bloccate.
+          </p>
+        </div>
+      )}
+
+      {view === 'bracket' && (!showBracket ? (
         <div className="card">
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>
             Il tabellone sarà disponibile da 2 giorni prima dell'inizio torneo.
@@ -195,7 +287,81 @@ export default function Tournament({ session }) {
         </div>
       ) : (
         <TournamentBracket tournament={tournament} session={session} />
+      ))}
+
+      {view === 'scores' && (
+        <ScoresView
+          playerScores={playerScores}
+          allPicks={allPicks}
+          users={users}
+        />
       )}
+    </div>
+  )
+}
+
+function ScoresView({ playerScores, allPicks, users }) {
+  // Picked players with their scores
+  const pickedPlayerIds = new Set(allPicks.map(p => p.atp_player_id))
+  const pickedScores = playerScores
+    .filter(s => pickedPlayerIds.has(s.player.id))
+
+  return (
+    <div className="scores-view">
+      {/* All players */}
+      <div className="scores-section">
+        <div className="scores-section-title">Punti totali — tutti i giocatori</div>
+        {playerScores.length === 0 ? (
+          <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessuna partita completata.</p>
+        ) : (
+          <div className="scores-list">
+            {playerScores.map((s, i) => (
+              <div key={s.player.id} className="score-row">
+                <span className="score-rank mono">#{i + 1}</span>
+                <span className="score-name">{s.player.name}</span>
+                <span className="score-ranking mono" style={{ color: 'var(--text3)', fontSize: 11 }}>
+                  ATP #{s.player.ranking}
+                </span>
+                <span className="score-pts mono">{s.wins}V · +{s.points}pts</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Picked players only */}
+      <div className="scores-section" style={{ marginTop: 32 }}>
+        <div className="scores-section-title">Punti schierati — solo picks</div>
+        {pickedScores.length === 0 ? (
+          <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessun giocatore schierato ha ancora giocato.</p>
+        ) : (
+          <div className="scores-list">
+            {pickedScores.map((s, i) => {
+              const pick = allPicks.find(p => p.atp_player_id === s.player.id)
+              const user = users.find(u => u.id === pick?.user_id)
+              return (
+                <div key={s.player.id} className="score-row">
+                  <span className="score-rank mono">#{i + 1}</span>
+                  <span className="score-name">{s.player.name}</span>
+                  {user && (
+                    <span className="score-owner" style={{
+                      color: user.color.text,
+                      background: user.color.bg,
+                      border: `1px solid ${user.color.border}`,
+                      fontSize: 10,
+                      padding: '1px 6px',
+                      borderRadius: '100px',
+                    }}>
+                      {pick?.is_captain ? '★ ' : ''}{user.username}
+                    </span>
+                  )}
+                  <span className="score-pts mono">{s.wins}V · +{s.points}pts</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
