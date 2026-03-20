@@ -24,6 +24,7 @@ function formatDate(d) {
 
 export default function Dashboard({ session }) {
   const [leaderboard, setLeaderboard] = useState([])
+  const [liveStandings, setLiveStandings] = useState([])
   const [tournaments, setTournaments] = useState([])
   const [allRosters,  setAllRosters]  = useState([])  // rose di tutti
   const [loading,     setLoading]     = useState(true)
@@ -45,6 +46,37 @@ export default function Dashboard({ session }) {
       ])
       setLeaderboard(lb ?? [])
       setTournaments(tv ?? [])
+
+      // Controlla se c'è un torneo in corso
+      const { data: ongoingTournament } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('status', 'ongoing')
+        .maybeSingle()
+
+      if (ongoingTournament) {
+        const { data: liveScores } = await supabase
+          .rpc('compute_live_tournament_scores', {
+            p_tournament_id: ongoingTournament.id
+          })
+
+        // Somma punti live per user (base + captain + win_bonus = total_points)
+        const liveByUser = {}
+        ;(liveScores ?? []).forEach(s => {
+          liveByUser[s.user_id] = (liveByUser[s.user_id] ?? 0) + (s.total_points ?? 0)
+        })
+
+        // Combina con leaderboard esistente
+        const combined = (lb ?? []).map(u => ({
+          ...u,
+          total_points: (u.total_points ?? 0) + (liveByUser[u.user_id] ?? 0),
+          live_points: liveByUser[u.user_id] ?? 0,
+        })).sort((a, b) => b.total_points - a.total_points)
+
+        setLiveStandings(combined)
+      } else {
+        setLiveStandings(lb ?? [])
+      }
 
       // Raggruppa rose per utente
       const byUser = {}
@@ -96,7 +128,7 @@ export default function Dashboard({ session }) {
               {leaderboard.length === 0 && (
                 <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessun punto ancora. Forza!</p>
               )}
-              {leaderboard.map((u, i) => {
+              {(liveStandings.length > 0 ? liveStandings : leaderboard).map((u, i) => {
                 const isMe   = u.user_id === session.user.id
                 const medals = ['🥇', '🥈', '🥉']
                 const color  = userColorMap[u.user_id]
@@ -113,6 +145,18 @@ export default function Dashboard({ session }) {
                     <div className="lb-right">
                       <span className="lb-pts mono">{u.total_points}</span>
                       <span className="lb-pts-label">pts</span>
+                      {u.live_points > 0 && (
+                        <span className="mono" style={{
+                          fontSize: 10,
+                          color: 'var(--accent)',
+                          background: 'rgba(200,240,0,0.1)',
+                          padding: '1px 6px',
+                          borderRadius: '100px',
+                          marginLeft: 4
+                        }}>
+                          +{u.live_points} live
+                        </span>
+                      )}
                     </div>
                   </div>
                 )
