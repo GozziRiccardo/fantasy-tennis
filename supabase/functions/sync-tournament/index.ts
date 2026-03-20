@@ -74,6 +74,12 @@ Deno.serve(async (req) => {
   for (const tournament of tournamentsToSync) {
     const t = tournament
     try {
+      console.log(`[sync-tournament] Tournament data:`, JSON.stringify({
+        id: t.id,
+        name: t.name,
+        api_season_id: t.api_season_id,
+        api_tournament_id: t.api_tournament_id,
+      }))
       console.log(`[sync-tournament] Starting sync for tournament=${t.name} (id=${t.id}, api_id=${t.api_tournament_id})`)
       if (!t.api_tournament_id) {
         results.push({ tournament: t.name, skipped: 'No api_tournament_id set in DB' })
