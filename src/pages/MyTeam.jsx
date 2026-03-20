@@ -15,7 +15,6 @@ export default function MyTeam({ session }) {
   const [loading,  setLoading]  = useState(true)
   const [credits,  setCredits]  = useState(0)
   const [pointsMap, setPointsMap] = useState({}) // atp_player_id → total_points
-  const [livePointsMap, setLivePointsMap] = useState({}) // atp_player_id → live points (schierato, no captain)
   const [totalPointsMap, setTotalPointsMap] = useState({})
   const [ownerMap, setOwnerMap] = useState({})
 
@@ -56,26 +55,36 @@ export default function MyTeam({ session }) {
       })
       setOwnerMap(nextOwnerMap)
 
-      // Carica i punti da schierato per ogni giocatore su tutti gli utenti
-      const { data: scores } = await supabase
+      // Carica punti da tornei completati
+      const { data: completedScores } = await supabase
         .from('tournament_scores')
-        .select(`
-          total_points,
-          picks (
-            atp_player_id
-          )
-        `)
+        .select(`total_points, picks ( atp_player_id, user_id, is_captain )`)
 
-      // Somma i punti per giocatore
+      // Punti schierati da tornei completati (solo utente corrente)
       const scheduledMap = {}
-      ;(scores ?? []).forEach(s => {
+      ;(completedScores ?? []).forEach(s => {
         const pid = s.picks?.atp_player_id
-        if (!pid) return
+        const uid = s.picks?.user_id
+        if (!pid || uid !== session.user.id) return
         scheduledMap[pid] = (scheduledMap[pid] ?? 0) + (s.total_points ?? 0)
       })
-      setPointsMap(scheduledMap)
 
-      // Carica punti live se c'è un torneo in corso
+      // Punti totali da tornei completati (tutti gli utenti, senza captain bonus)
+      const totalMap = {}
+      ;(completedScores ?? []).forEach(s => {
+        const pid = s.picks?.atp_player_id
+        if (!pid) return
+        // base_points + win_bonus = total_points - captain_bonus
+        // Ma da tournament_scores non abbiamo i dettagli, usiamo total_points / 2 se capitano
+        // Quindi carichiamo con la funzione get_player_total_points
+      })
+
+      const { data: totalScores } = await supabase.rpc('get_player_total_points')
+      ;(totalScores ?? []).forEach(s => {
+        totalMap[s.atp_player_id] = Number(s.total_points) ?? 0
+      })
+
+      // Controlla se c'è un torneo in corso
       const { data: ongoingTournament } = await supabase
         .from('tournaments')
         .select('id')
@@ -85,40 +94,22 @@ export default function MyTeam({ session }) {
       if (ongoingTournament) {
         const { data: liveScores } = await supabase
           .rpc('compute_live_tournament_scores', {
-            p_tournament_id: ongoingTournament.id,
+            p_tournament_id: ongoingTournament.id
           })
 
-        const liveMap = {}
-        ;(liveScores ?? []).filter(s => s.user_id === session.user.id).forEach(s => {
-          // base_points + win_bonus (NO captain bonus per "punti schierati" display)
-          // ma total_points include captain bonus, quindi usiamo base_points + win_bonus
-          liveMap[s.atp_player_id] = (s.base_points ?? 0) + (s.win_bonus ?? 0)
-        })
-        setLivePointsMap(liveMap)
-      } else {
-        setLivePointsMap({})
-      }
-
-      // Punti totali da tornei completati
-      const { data: totalScores } = await supabase
-        .rpc('get_player_total_points')
-
-      const totalMap = {}
-      ;(totalScores ?? []).forEach(s => {
-        totalMap[s.atp_player_id] = Number(s.total_points) || 0
-      })
-
-      // Aggiungi punti live dal torneo in corso (base + win_bonus, senza captain)
-      if (ongoingTournament) {
-        const { data: liveScores } = await supabase
-          .rpc('compute_live_tournament_scores', {
-            p_tournament_id: ongoingTournament.id,
-          })
         ;(liveScores ?? []).forEach(s => {
-          const livePts = (s.base_points ?? 0) + (s.win_bonus ?? 0)
-          totalMap[s.atp_player_id] = (totalMap[s.atp_player_id] ?? 0) + livePts
+          // Punti schierati live (base + win_bonus, senza captain) solo per utente corrente
+          if (s.user_id === session.user.id) {
+            const liveSched = (s.base_points ?? 0) + (s.win_bonus ?? 0)
+            scheduledMap[s.atp_player_id] = (scheduledMap[s.atp_player_id] ?? 0) + liveSched
+          }
+          // Punti totali live (base + win_bonus, senza captain) per tutti
+          const liveTotal = (s.base_points ?? 0) + (s.win_bonus ?? 0)
+          totalMap[s.atp_player_id] = (totalMap[s.atp_player_id] ?? 0) + liveTotal
         })
       }
+
+      setPointsMap(scheduledMap)
       setTotalPointsMap(totalMap)
 
       setLoading(false)
@@ -210,9 +201,7 @@ export default function MyTeam({ session }) {
                     <span className="price-paid mono">{r.price_paid} crediti</span>
                   </div>
                   {(() => {
-                    const pts = pointsMap[p.id] ?? 0           // punti da schierato (tornei completati)
-                    const livePts = livePointsMap[p.id] ?? 0   // punti live torneo in corso (no captain)
-                    const totalSchierato = pts + livePts + (livePointsMap[p.id] !== undefined && roster.find(rp => rp.atp_player_id === p.id) ? 0 : 0)
+                    const totalSchierato = pointsMap[p.id] ?? 0
                     const totalPts = totalPointsMap[p.id] ?? 0
 
                     return (
