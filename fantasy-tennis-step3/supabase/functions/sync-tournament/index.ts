@@ -18,6 +18,7 @@ interface Tournament {
   name: string
   type: 'slam' | 'masters1000'
   api_tournament_id: string
+  api_season_id?: string | number | null
   total_rounds: number
   start_date: string
   end_date: string
@@ -79,8 +80,22 @@ async function syncTournament(
   apiKey: string,
   tournament: Tournament,
 ) {
+  let seasonId: string | null = tournament.api_season_id ? String(tournament.api_season_id) : null
+
+  if (seasonId) {
+    console.log(`Using cached api_season_id=${seasonId} for tournament ${tournament.api_tournament_id}`)
+  } else {
+    const fetchedSeasonId = await getCurrentSeasonId(apiKey, tournament.api_tournament_id)
+    seasonId = fetchedSeasonId
+
+    await supabase
+      .from('tournaments')
+      .update({ api_season_id: seasonId })
+      .eq('id', tournament.id)
+  }
+
   // Fetch all matches for this tournament from API-Tennis
-  const apiMatches = await fetchTournamentMatches(apiKey, tournament.api_tournament_id)
+  const apiMatches = await fetchTournamentMatches(apiKey, tournament.api_tournament_id, seasonId)
 
   let inserted = 0
   let updated  = 0
@@ -176,8 +191,9 @@ async function syncTournament(
 async function fetchTournamentMatches(
   apiKey: string,
   tournamentId: string,
+  seasonId: string,
 ): Promise<ApiMatch[]> {
-  const url = `https://api-tennis.p.rapidapi.com/matches?tournament_id=${tournamentId}&season_id=2025`
+  const url = `https://api-tennis.p.rapidapi.com/matches?tournament_id=${tournamentId}&season_id=${seasonId}`
 
   const res = await fetch(url, {
     headers: {
@@ -193,6 +209,37 @@ async function fetchTournamentMatches(
   const json = await res.json()
   // API-Tennis wraps results in { result: [...] }
   return (json.result ?? json.response ?? []) as ApiMatch[]
+}
+
+async function getCurrentSeasonId(
+  apiKey: string,
+  tournamentId: string,
+): Promise<string> {
+  const url = `https://api-tennis.p.rapidapi.com/seasons?tournament_id=${tournamentId}`
+
+  const res = await fetch(url, {
+    headers: {
+      'X-RapidAPI-Key':  apiKey,
+      'X-RapidAPI-Host': 'api-tennis.p.rapidapi.com',
+    },
+  })
+
+  if (!res.ok) {
+    throw new Error(`Seasons fetch failed for ${tournamentId}: ${res.status}`)
+  }
+
+  const json = await res.json()
+  const seasons = (json.result ?? json.response ?? []) as Array<{ id?: string | number }>
+  const latest = seasons
+    .map((s) => Number(s.id))
+    .filter((id) => Number.isFinite(id))
+    .sort((a, b) => b - a)[0]
+
+  if (!latest) {
+    throw new Error(`No season returned for tournament ${tournamentId}`)
+  }
+
+  return String(latest)
 }
 
 // ── Helper: upsert a player we don't know yet ──────────────────
