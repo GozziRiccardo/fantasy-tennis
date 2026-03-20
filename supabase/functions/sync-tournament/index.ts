@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     console.log(`[sync-tournament] Forced tournament requested: ${requestedId}`)
     const { data, error } = await supabase
       .from('tournaments')
-      .select('*')
+      .select('id, name, type, status, start_date, end_date, api_tournament_id, api_season_id, total_rounds')
       .eq('id', requestedId)
       .maybeSingle()
     if (error) return jsonError(error.message, 500)
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     console.log('[sync-tournament] No forced tournament_id provided. Syncing all ongoing tournaments.')
     const { data, error } = await supabase
       .from('tournaments')
-      .select('*')
+      .select('id, name, type, status, start_date, end_date, api_tournament_id, api_season_id, total_rounds')
       .eq('status', 'ongoing')
     if (error) return jsonError(error.message, 500)
     if (!data || data.length === 0) return jsonOk({ message: 'No ongoing tournaments.' })
