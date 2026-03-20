@@ -16,6 +16,7 @@ export default function MyTeam({ session }) {
   const [credits,  setCredits]  = useState(0)
   const [pointsMap, setPointsMap] = useState({}) // atp_player_id → total_points
   const [totalPointsMap, setTotalPointsMap] = useState({})
+  const [tableScheduledMap, setTableScheduledMap] = useState({})
   const [ownerMap, setOwnerMap] = useState({})
 
   useEffect(() => {
@@ -108,13 +109,37 @@ export default function MyTeam({ session }) {
             p_tournament_id: ongoingTournament.id
           })
 
-        ;(livePickedScores ?? [])
-          .filter(s => s.user_id === session.user.id)
-          .forEach(s => {
-            const liveSched = (s.base_points ?? 0) + (s.win_bonus ?? 0)
-            scheduledMap[s.atp_player_id] = (scheduledMap[s.atp_player_id] ?? 0) + liveSched
-          })
+        // Map per le CARTE (solo utente corrente, con captain bonus incluso)
+        const myLiveMap = {}
+
+        // Map per la TABELLA (tutti gli utenti sommati, senza captain bonus)
+        const allScheduledMap = {}
+
+        ;(livePickedScores ?? []).forEach(s => {
+          // Tabella: somma base_points + win_bonus per tutti
+          const pts = (s.base_points ?? 0) + (s.win_bonus ?? 0)
+          allScheduledMap[s.atp_player_id] = (allScheduledMap[s.atp_player_id] ?? 0) + pts
+
+          // Carte: solo utente corrente, con captain bonus
+          if (s.user_id === session.user.id) {
+            const myPts = (s.total_points ?? 0)
+            myLiveMap[s.atp_player_id] = (myLiveMap[s.atp_player_id] ?? 0) + myPts
+          }
+        })
+
+        // Aggiorna scheduledMap per le carte (solo miei punti con captain)
+        Object.entries(myLiveMap).forEach(([pid, pts]) => {
+          scheduledMap[Number(pid)] = (scheduledMap[Number(pid)] ?? 0) + pts
+        })
+
+        // Crea un nuovo map per la tabella (tutti gli schierati)
+        const nextTableScheduledMap = { ...scheduledMap }
+        Object.entries(allScheduledMap).forEach(([pid, pts]) => {
+          nextTableScheduledMap[Number(pid)] = (nextTableScheduledMap[Number(pid)] ?? 0) + pts
+        })
+        setTableScheduledMap(nextTableScheduledMap)
       }
+      if (!ongoingTournament) setTableScheduledMap(scheduledMap)
 
       setPointsMap(scheduledMap)
       setTotalPointsMap(totalMap)
@@ -134,7 +159,7 @@ export default function MyTeam({ session }) {
 
   function renderPlayerRow(p) {
     const totalPts = totalPointsMap[p.id] ?? 0
-    const scheduledPts = pointsMap[p.id] ?? 0
+    const scheduledPts = tableScheduledMap[p.id] ?? 0
     return (
       <tr key={p.id} className={ownerMap[p.id]?.isMe ? 'row-owned' : ''}>
         <td className="mono">#{p.ranking}</td>
