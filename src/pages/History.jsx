@@ -3,10 +3,18 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import TournamentBracket from '../components/TournamentBracket'
+import { getUserColorMap } from '../utils/userColors'
 import './History.css'
 
 function formatDate(d) {
   return new Date(d).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const TOURNAMENTS_WITHOUT_RECORDED_SCORES = ['indian wells', 'australian open']
+
+function hasRecordedScores(tournament) {
+  const normalizedName = tournament?.name?.toLowerCase() ?? ''
+  return !TOURNAMENTS_WITHOUT_RECORDED_SCORES.some((name) => normalizedName.includes(name))
 }
 
 export default function History({ session }) {
@@ -14,6 +22,8 @@ export default function History({ session }) {
   const [selected,    setSelected]    = useState(null)
   const [scores,      setScores]      = useState([])
   const [playerScores, setPlayerScores] = useState([])
+  const [allPicks, setAllPicks] = useState([])
+  const [users, setUsers] = useState([])
   const [activeTab,   setActiveTab]   = useState('standings') // 'standings' | 'scores' | 'bracket'
   const [loading,     setLoading]     = useState(true)
   const [detailLoad,  setDetailLoad]  = useState(false)
@@ -36,30 +46,67 @@ export default function History({ session }) {
     setActiveTab('standings')
     setDetailLoad(true)
 
-    const { data: sc } = await supabase
-      .from('tournament_scores')
-      .select(`
-        rounds_won, base_points, captain_bonus, win_bonus, total_points,
-        picks (
-          is_captain, multiplier, user_id,
-          atp_players ( name, ranking ),
+    if (!hasRecordedScores(t)) {
+      setScores([])
+      setAllPicks([])
+      setUsers([])
+    } else {
+      const { data: picksData } = await supabase
+        .from('picks')
+        .select(`
+          user_id, atp_player_id, is_captain, multiplier,
+          atp_players ( id, name, ranking ),
           profiles ( username )
-        )
-      `)
-      .eq('picks.tournament_id', t.id)
-      .order('total_points', { ascending: false })
+        `)
+        .eq('tournament_id', t.id)
 
-    // Raggruppa per utente
-    const byUser = {}
-    ;(sc ?? []).forEach(s => {
-      const uid      = s.picks?.user_id
-      const username = s.picks?.profiles?.username ?? uid
-      if (!byUser[uid]) byUser[uid] = { username, picks: [], total: 0 }
-      byUser[uid].picks.push(s)
-      byUser[uid].total += s.total_points ?? 0
-    })
+      const picks = picksData ?? []
+      setAllPicks(picks)
 
-    setScores(Object.values(byUser).sort((a, b) => b.total - a.total))
+      const colorMap = await getUserColorMap(supabase)
+      const nextUsers = Array.from(
+        new Map(
+          picks.map(p => {
+            const color = colorMap[p.user_id] ?? { text: 'var(--text)', bg: 'transparent', border: 'var(--border)' }
+            return [
+              p.user_id,
+              {
+                id: p.user_id,
+                username: p.profiles?.username ?? p.user_id,
+                color,
+              },
+            ]
+          })
+        ).values()
+      )
+      setUsers(nextUsers)
+
+      const { data: sc } = await supabase
+        .from('tournament_scores')
+        .select(`
+          rounds_won, base_points, captain_bonus, win_bonus, total_points,
+          picks!inner (
+            tournament_id, is_captain, multiplier, user_id,
+            atp_players ( name, ranking ),
+            profiles ( username )
+          )
+        `)
+        .eq('picks.tournament_id', t.id)
+        .order('total_points', { ascending: false })
+
+      // Raggruppa per utente
+      const byUser = {}
+      ;(sc ?? []).forEach(s => {
+        const uid = s.picks?.user_id
+        if (!uid) return
+        const username = s.picks?.profiles?.username ?? uid
+        if (!byUser[uid]) byUser[uid] = { username, picks: [], total: 0 }
+        byUser[uid].picks.push(s)
+        byUser[uid].total += s.total_points ?? 0
+      })
+
+      setScores(Object.values(byUser).sort((a, b) => b.total - a.total))
+    }
 
     const { data: matchResults } = await supabase
       .from('match_players')
@@ -184,7 +231,6 @@ export default function History({ session }) {
               <div className="card">
                 <p style={{ color: 'var(--text2)' }}>
                   Nessun punteggio registrato per questo torneo.
-                  {' '}I punti compaiono qui solo per i tornei in cui avete schierato giocatori.
                 </p>
               </div>
             ) : (
@@ -230,27 +276,7 @@ export default function History({ session }) {
           )}
 
           {activeTab === 'scores' && (
-            <div className="scores-view">
-              <div className="scores-section">
-                <div className="scores-section-title">Punti totali — tutti i giocatori</div>
-                {playerScores.length === 0 ? (
-                  <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessuna partita completata.</p>
-                ) : (
-                  <div className="scores-list">
-                    {playerScores.map((s, i) => (
-                      <div key={s.player?.id} className="score-row">
-                        <span className="score-rank mono">#{i + 1}</span>
-                        <span className="score-name">{s.player?.name}</span>
-                        <span className="score-ranking mono" style={{ color: 'var(--text3)', fontSize: 11 }}>
-                          {s.player?.ranking >= 200 ? 'fuori top 100' : `ATP #${s.player?.ranking}`}
-                        </span>
-                        <span className="score-pts mono">{s.wins}V · +{s.points}pts</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <ScoresView playerScores={playerScores} allPicks={allPicks} users={users} />
           )}
 
           {/* ── Tab: Tabellone ── */}
@@ -261,6 +287,69 @@ export default function History({ session }) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function ScoresView({ playerScores, allPicks, users }) {
+  const pickedPlayerIds = new Set(allPicks.map(p => p.atp_player_id))
+  const pickedScores = playerScores
+    .filter(s => pickedPlayerIds.has(s.player?.id))
+
+  return (
+    <div className="scores-view">
+      <div className="scores-section">
+        <div className="scores-section-title">Punti totali — tutti i giocatori</div>
+        {playerScores.length === 0 ? (
+          <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessuna partita completata.</p>
+        ) : (
+          <div className="scores-list">
+            {playerScores.map((s, i) => (
+              <div key={s.player?.id} className="score-row">
+                <span className="score-rank mono">#{i + 1}</span>
+                <span className="score-name">{s.player?.name}</span>
+                <span className="score-ranking mono" style={{ color: 'var(--text3)', fontSize: 11 }}>
+                  {s.player?.ranking >= 200 ? 'fuori top 100' : `ATP #${s.player?.ranking}`}
+                </span>
+                <span className="score-pts mono">{s.wins}V · +{s.points}pts</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="scores-section" style={{ marginTop: 32 }}>
+        <div className="scores-section-title">Punti schierati — solo picks</div>
+        {pickedScores.length === 0 ? (
+          <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessun giocatore schierato ha ancora giocato.</p>
+        ) : (
+          <div className="scores-list">
+            {pickedScores.map((s, i) => {
+              const pick = allPicks.find(p => p.atp_player_id === s.player?.id)
+              const user = users.find(u => u.id === pick?.user_id)
+              return (
+                <div key={s.player?.id} className="score-row">
+                  <span className="score-rank mono">#{i + 1}</span>
+                  <span className="score-name">{s.player?.name}</span>
+                  {user && (
+                    <span className="score-owner" style={{
+                      color: user.color.text,
+                      background: user.color.bg,
+                      border: `1px solid ${user.color.border}`,
+                      fontSize: 10,
+                      padding: '1px 6px',
+                      borderRadius: '100px',
+                    }}>
+                      {pick?.is_captain ? '★ ' : ''}{user.username}
+                    </span>
+                  )}
+                  <span className="score-pts mono">{s.wins}V · +{s.points}pts</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
