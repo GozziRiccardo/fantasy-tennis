@@ -82,6 +82,40 @@ export default function MyTeam({ session }) {
         totalMap[s.atp_player_id] = Number(s.total_points) ?? 0
       })
 
+      // Fallback: punti totali per tutti i giocatori (anche mai schierati).
+      // get_player_total_points può restituire solo giocatori presenti nelle picks.
+      const { data: allMatchResults } = await supabase
+        .from('match_players')
+        .select(`
+          atp_player_id, is_winner,
+          atp_players!inner ( id, ranking ),
+          matches!inner (
+            status, round_name,
+            tournaments!inner ( type )
+          )
+        `)
+        .eq('matches.status', 'completed')
+
+      const computedTotals = {}
+      ;(allMatchResults ?? []).forEach(mp => {
+        if (!mp.is_winner) return
+        const roundName = mp.matches?.round_name ?? ''
+        if (roundName.toLowerCase().includes('qualif')) return
+
+        const pid = mp.atp_player_id
+        const ranking = mp.atp_players?.ranking ?? 999
+        const mult = Math.ceil(Math.min(ranking, 100) / 5)
+        const isSlam = mp.matches?.tournaments?.type === 'slam'
+        const pointMult = isSlam ? 2 : 1
+        const pts = mult * pointMult
+        computedTotals[pid] = (computedTotals[pid] ?? 0) + pts
+      })
+
+      Object.entries(computedTotals).forEach(([pid, pts]) => {
+        const id = Number(pid)
+        if (totalMap[id] == null) totalMap[id] = pts
+      })
+
       // Controlla se c'è un torneo in corso
       const { data: ongoingTournament } = await supabase
         .from('tournaments')
