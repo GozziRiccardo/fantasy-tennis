@@ -90,43 +90,8 @@ export default function MyTeam({ session }) {
         .maybeSingle()
 
       if (ongoingTournament) {
-        // Punti totali live per TUTTI i giocatori (stessa logica "Score giocatori" della pagina Torneo)
-        const { data: liveMatchResults } = await supabase
-          .from('match_players')
-          .select(`
-            atp_player_id, is_winner,
-            atp_players ( id, ranking ),
-            matches!inner ( tournament_id, status, round_name )
-          `)
-          .eq('matches.tournament_id', ongoingTournament.id)
-          .eq('matches.status', 'completed')
-
-        const liveWinsMap = {}
-        ;(liveMatchResults ?? []).forEach(mp => {
-          if (!mp.is_winner) return
-          const roundName = mp.matches?.round_name ?? ''
-          if (roundName.toLowerCase().includes('qualif')) return
-
-          const pid = mp.atp_player_id
-          if (!pid) return
-
-          if (!liveWinsMap[pid]) {
-            liveWinsMap[pid] = {
-              ranking: mp.atp_players?.ranking ?? 100,
-              wins: 0,
-            }
-          }
-          liveWinsMap[pid].wins++
-        })
-
-        const pointMult = ongoingTournament.type === 'slam' ? 2 : 1
-        Object.entries(liveWinsMap).forEach(([pid, entry]) => {
-          const multiplier = computeMultiplier(Math.min(entry.ranking, 100))
-          const liveTotalPoints = multiplier * pointMult * entry.wins
-          totalMap[Number(pid)] = (totalMap[Number(pid)] ?? 0) + liveTotalPoints
-        })
-
-        // Punti schierati live solo per l'utente corrente (include captain bonus)
+        // I punti totali tabellari sono già forniti da get_player_total_points.
+        // Qui calcoliamo soltanto i punti "Da schierato" live.
         const { data: livePickedScores } = await supabase
           .rpc('compute_live_tournament_scores', {
             p_tournament_id: ongoingTournament.id
