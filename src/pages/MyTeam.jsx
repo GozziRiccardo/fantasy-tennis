@@ -164,7 +164,6 @@ export default function MyTeam({ session }) {
       <tr key={p.id} className={ownerMap[p.id]?.isMe ? 'row-owned' : ''}>
         <td className="mono">#{p.ranking}</td>
         <td className="player-col">{p.name}</td>
-        <td className="mono price-col">{p.price}</td>
         <td className="mono">×{computeMultiplier(p.ranking)}</td>
         <td>
           {ownerMap[p.id] ? (
@@ -275,7 +274,6 @@ export default function MyTeam({ session }) {
               <tr>
                 <th>Rank</th>
                 <th>Giocatore</th>
-                <th>Prezzo</th>
                 <th>Molt.</th>
                 <th>In rosa</th>
                 <th>Punti totali</th>
@@ -287,7 +285,7 @@ export default function MyTeam({ session }) {
               {outsideTop100.length > 0 && (
                 <>
                   <tr>
-                    <td colSpan={7} style={{
+                    <td colSpan={6} style={{
                       padding: '8px 20px',
                       fontSize: 11,
                       color: 'var(--text3)',
