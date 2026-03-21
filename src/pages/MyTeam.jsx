@@ -155,11 +155,8 @@ export default function MyTeam({ session }) {
           scheduledMap[Number(pid)] = (scheduledMap[Number(pid)] ?? 0) + pts
         })
 
-        // Crea un nuovo map per la tabella (tutti gli schierati)
-        const nextTableScheduledMap = { ...scheduledMap }
-        Object.entries(allScheduledMap).forEach(([pid, pts]) => {
-          nextTableScheduledMap[Number(pid)] = (nextTableScheduledMap[Number(pid)] ?? 0) + pts
-        })
+        // Tabella: usa solo l'aggregato di tutti gli utenti (senza captain bonus)
+        const nextTableScheduledMap = { ...allScheduledMap }
         setTableScheduledMap(nextTableScheduledMap)
       }
       if (!ongoingTournament) setTableScheduledMap(scheduledMap)
