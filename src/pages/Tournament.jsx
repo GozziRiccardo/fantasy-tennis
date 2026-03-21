@@ -29,6 +29,9 @@ function isBracketAvailableForTournament(tournament) {
 
 export default function Tournament({ session }) {
   const [tournament, setTournament] = useState(null)
+  const [tournaments, setTournaments] = useState([])
+  const [activeTournamentId, setActiveTournamentId] = useState(null)
+  const [isUpcoming, setIsUpcoming] = useState(false)
   const [tournamentStandings, setTournamentStandings] = useState([])
   const [liveScores, setLiveScores] = useState([])
   const [colorMap, setColorMap] = useState({})
@@ -48,18 +51,51 @@ export default function Tournament({ session }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'match_players' }, load)
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [])
+  }, [activeTournamentId])
 
   async function load() {
-    // Preferisce il torneo in corso, poi il prossimo upcoming
-    const { data: ongoing } = await supabase
-      .from('tournaments').select('*').eq('status', 'ongoing').limit(1).maybeSingle()
-    const { data: upcoming } = await supabase
-      .from('tournaments').select('*').eq('status', 'upcoming').order('start_date').limit(1).maybeSingle()
+    setLoading(true)
 
-    const t = ongoing ?? upcoming ?? null
+    // Fetch ongoing tournament
+    const { data: ongoingT } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('status', 'ongoing')
+      .maybeSingle()
+
+    // Fetch upcoming tournament starting within 2 days
+    const in2days = new Date()
+    in2days.setDate(in2days.getDate() + 2)
+    const in2daysStr = in2days.toISOString().slice(0, 10)
+
+    const { data: upcomingT } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('status', 'upcoming')
+      .lte('start_date', in2daysStr)
+      .order('start_date')
+      .maybeSingle()
+
+    const tournamentsToShow = [
+      ...(ongoingT ? [ongoingT] : []),
+      ...(upcomingT ? [upcomingT] : []),
+    ].filter((item, i, arr) => arr.findIndex(x => x.id === item.id) === i)
+
+    setTournaments(tournamentsToShow)
+
+    const selectedTournament = activeTournamentId
+      ? tournamentsToShow.find((item) => item.id === activeTournamentId)
+      : (ongoingT ?? upcomingT)
+
+    // Priority: ongoing first, then upcoming
+    const t = selectedTournament ?? ongoingT ?? upcomingT
+
+    if (!activeTournamentId && t) {
+      setActiveTournamentId(t.id)
+    }
 
     setTournament(t)
+    setIsUpcoming(t?.status === 'upcoming')
     const nextColorMap = await getUserColorMap(supabase)
     setColorMap(nextColorMap)
 
@@ -217,6 +253,35 @@ export default function Tournament({ session }) {
           {tournament.status === 'ongoing' ? '● Live' : 'Upcoming'}
         </span>
       </header>
+
+      {tournaments.length > 1 && (
+        <div className="tournament-tabs">
+          {tournaments.map((t) => (
+            <button
+              key={t.id}
+              className={`tournament-tab ${activeTournamentId === t.id ? 'active' : ''}`}
+              onClick={() => setActiveTournamentId(t.id)}
+            >
+              {t.name}
+              {t.status === 'upcoming' && (
+                <span className="upcoming-badge">🔜</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isUpcoming && tournament && (
+        <div className="upcoming-banner">
+          🔜 Il torneo inizia il{' '}
+          <strong>
+            {new Date(tournament.start_date).toLocaleDateString('it-IT', {
+              day: 'numeric', month: 'long',
+            })}
+          </strong>
+          {' '}— tabellone preliminare, gli schieramenti sono ancora aperti.
+        </div>
+      )}
 
       <div className="view-toggle" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button
