@@ -44,7 +44,6 @@ Deno.serve(async (req) => {
   }
 
   const requestedId = body.tournament_id
-  const forcedId = requestedId ?? null
 
   let tournamentsToSync: any[]
 
@@ -113,7 +112,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const summary = await syncMatches(supabase, apiKey, t, t.api_tournament_id, seasonId, !!forcedId)
+      const summary = await syncMatches(supabase, apiKey, t, t.api_tournament_id, seasonId)
       console.log(`[sync-tournament] Sync completed for tournament=${t.name}.`, JSON.stringify(summary))
       results.push({ tournament: t.name, seasonId, ...summary })
     } catch (e) {
@@ -190,11 +189,10 @@ async function syncMatches(
   tournament: any,
   tournamentId: string,
   seasonId: string,
-  isForced: boolean,
 ) {
   const allMatches: any[] = []
 
-  console.log(`[sync-tournament] syncMatches start: tournament=${tournament.name}, tournamentId=${tournamentId}, seasonId=${seasonId}, forced=${isForced}`)
+  console.log(`[sync-tournament] syncMatches start: tournament=${tournament.name}, tournamentId=${tournamentId}, seasonId=${seasonId}`)
 
   const lastEventsUrl = `https://tennisapi1.p.rapidapi.com/api/tennis/tournament/${tournamentId}/season/${seasonId}/events/last/0`
   console.log('[sync-tournament] Fetching last events page=0')
@@ -275,22 +273,6 @@ async function syncMatches(
 
     processed++
   }
-
-  if (!isForced) {
-    const { count: pendingFinals } = await supabase
-      .from('matches')
-      .select('id', { count: 'exact', head: true })
-      .eq('tournament_id', tournament.id)
-      .eq('round_number', tournament.total_rounds)
-      .neq('status', 'completed')
-
-    if (pendingFinals === 0 && processed > 0) {
-      await supabase.from('tournaments').update({ status: 'completed' }).eq('id', tournament.id)
-      await supabase.rpc('compute_tournament_scores', { p_tournament_id: tournament.id })
-      return { matches_processed: processed, scores_computed: true }
-    }
-  }
-
   return { matches_fetched: allMatches.length, matches_processed: processed }
 }
 
