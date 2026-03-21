@@ -1,6 +1,47 @@
 /* Tournament.css — stili specifici della pagina Torneo */
 /* Gli stili del tabellone sono in TournamentBracket.css */
 
+.upcoming-banner {
+  background: rgba(200,240,0,0.08);
+  border: 1px solid rgba(200,240,0,0.3);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 20px;
+}
+
+.upcoming-banner strong { color: var(--accent); }
+
+.tournament-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.tournament-tab {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text2);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.tournament-tab.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 500;
+}
+
+.upcoming-badge { font-size: 12px; }
+
 .tournament-standings {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
