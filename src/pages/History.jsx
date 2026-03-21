@@ -13,7 +13,8 @@ export default function History({ session }) {
   const [tournaments, setTournaments] = useState([])
   const [selected,    setSelected]    = useState(null)
   const [scores,      setScores]      = useState([])
-  const [activeTab,   setActiveTab]   = useState('scores') // 'scores' | 'bracket'
+  const [playerScores, setPlayerScores] = useState([])
+  const [activeTab,   setActiveTab]   = useState('standings') // 'standings' | 'scores' | 'bracket'
   const [loading,     setLoading]     = useState(true)
   const [detailLoad,  setDetailLoad]  = useState(false)
 
@@ -32,7 +33,7 @@ export default function History({ session }) {
 
   async function selectTournament(t) {
     setSelected(t)
-    setActiveTab('scores')
+    setActiveTab('standings')
     setDetailLoad(true)
 
     const { data: sc } = await supabase
@@ -59,6 +60,41 @@ export default function History({ session }) {
     })
 
     setScores(Object.values(byUser).sort((a, b) => b.total - a.total))
+
+    const { data: matchResults } = await supabase
+      .from('match_players')
+      .select(`
+        atp_player_id, is_winner,
+        atp_players ( id, name, ranking ),
+        matches!inner ( tournament_id, status, round_number, round_name )
+      `)
+      .eq('matches.tournament_id', t.id)
+      .eq('matches.status', 'completed')
+
+    const winsMap = {}
+    ;(matchResults ?? []).forEach(mp => {
+      if (!mp.is_winner) return
+      const roundName = mp.matches?.round_name ?? ''
+      if (roundName.toLowerCase().includes('qualif')) return
+      const pid = mp.atp_player_id
+      if (!winsMap[pid]) winsMap[pid] = {
+        player: mp.atp_players,
+        wins: 0,
+        points: 0,
+      }
+      winsMap[pid].wins++
+    })
+
+    const pointMult = t.type === 'slam' ? 2 : 1
+    Object.values(winsMap).forEach(entry => {
+      const mult = Math.ceil(Math.min(entry.player?.ranking ?? 100, 100) / 5)
+      entry.points = mult * pointMult * entry.wins
+    })
+
+    setPlayerScores(
+      Object.values(winsMap).sort((a, b) => b.points - a.points)
+    )
+
     setDetailLoad(false)
   }
 
@@ -121,10 +157,16 @@ export default function History({ session }) {
           {/* Tab selector */}
           <div className="detail-tabs">
             <button
+              className={`detail-tab ${activeTab === 'standings' ? 'active' : ''}`}
+              onClick={() => setActiveTab('standings')}
+            >
+              📊 Punteggi
+            </button>
+            <button
               className={`detail-tab ${activeTab === 'scores' ? 'active' : ''}`}
               onClick={() => setActiveTab('scores')}
             >
-              📊 Punteggi
+              📊 Score giocatori
             </button>
             <button
               className={`detail-tab ${activeTab === 'bracket' ? 'active' : ''}`}
@@ -135,7 +177,7 @@ export default function History({ session }) {
           </div>
 
           {/* ── Tab: Punteggi ── */}
-          {activeTab === 'scores' && (
+          {activeTab === 'standings' && (
             detailLoad ? (
               <div style={{ padding: 24, color: 'var(--text2)', fontSize: 14 }}>Caricamento…</div>
             ) : scores.length === 0 ? (
@@ -185,6 +227,30 @@ export default function History({ session }) {
                 ))}
               </div>
             )
+          )}
+
+          {activeTab === 'scores' && (
+            <div className="scores-view">
+              <div className="scores-section">
+                <div className="scores-section-title">Punti totali — tutti i giocatori</div>
+                {playerScores.length === 0 ? (
+                  <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessuna partita completata.</p>
+                ) : (
+                  <div className="scores-list">
+                    {playerScores.map((s, i) => (
+                      <div key={s.player?.id} className="score-row">
+                        <span className="score-rank mono">#{i + 1}</span>
+                        <span className="score-name">{s.player?.name}</span>
+                        <span className="score-ranking mono" style={{ color: 'var(--text3)', fontSize: 11 }}>
+                          {s.player?.ranking >= 200 ? 'fuori top 100' : `ATP #${s.player?.ranking}`}
+                        </span>
+                        <span className="score-pts mono">{s.wins}V · +{s.points}pts</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* ── Tab: Tabellone ── */}

@@ -37,6 +37,7 @@ export default function Tournament({ session }) {
   const [playerScores, setPlayerScores] = useState([])
   const [allPicks, setAllPicks] = useState([])
   const [users, setUsers] = useState([])
+  const [eliminatedIds, setEliminatedIds] = useState(new Set())
 
   useEffect(() => {
     load()
@@ -68,9 +69,22 @@ export default function Tournament({ session }) {
       setPlayerScores([])
       setAllPicks([])
       setUsers([])
+      setEliminatedIds(new Set())
       setLoading(false)
       return
     }
+
+    const { data: eliminatedData } = await supabase
+      .from('match_players')
+      .select('atp_player_id, is_winner, matches!inner(tournament_id, status)')
+      .eq('matches.tournament_id', t.id)
+      .eq('matches.status', 'completed')
+      .eq('is_winner', false)
+
+    const eliminated = new Set(
+      (eliminatedData ?? []).map((e) => e.atp_player_id)
+    )
+    setEliminatedIds(eliminated)
 
     // Load picks + scores for all users for this tournament
     const { data: nextPicks } = await supabase
@@ -257,7 +271,16 @@ export default function Tournament({ session }) {
                         <span className="mono" style={{ fontSize: 10, color: 'var(--text3)' }}>
                           #{p.atp_players?.ranking}
                         </span>
-                        <span className="standing-pick-name">{p.atp_players?.name}</span>
+                        <span
+                          className="standing-pick-name"
+                          style={eliminatedIds.has(p.atp_player_id) ? {
+                            textDecoration: 'line-through',
+                            color: 'var(--text3)',
+                            opacity: 0.6,
+                          } : {}}
+                        >
+                          {p.atp_players?.name}
+                        </span>
                         {p.is_captain && (
                           <span className="standing-captain" style={{ color: color?.text }}>★</span>
                         )}
