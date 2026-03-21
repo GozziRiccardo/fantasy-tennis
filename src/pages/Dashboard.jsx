@@ -56,10 +56,19 @@ export default function Dashboard({ session }) {
             p_tournament_id: ongoingTournament.id
           })
 
+        // Deduplica eventuali righe duplicate per (user_id, atp_player_id)
+        const uniqueLiveByPick = {}
+        ;(liveScores ?? []).forEach(s => {
+          const key = `${s.user_id}-${s.atp_player_id}`
+          const pts = s.total_points ?? 0
+          uniqueLiveByPick[key] = Math.max(uniqueLiveByPick[key] ?? 0, pts)
+        })
+
         // Somma punti live per user (base + captain + win_bonus = total_points)
         const liveByUser = {}
-        ;(liveScores ?? []).forEach(s => {
-          liveByUser[s.user_id] = (liveByUser[s.user_id] ?? 0) + (s.total_points ?? 0)
+        Object.entries(uniqueLiveByPick).forEach(([key, pts]) => {
+          const userId = key.split('-')[0]
+          liveByUser[userId] = (liveByUser[userId] ?? 0) + pts
         })
 
         // Combina con leaderboard esistente
@@ -90,8 +99,9 @@ export default function Dashboard({ session }) {
 
   const upcoming = tournaments.filter(t => t.status === 'upcoming').slice(0, 3)
   const ongoing  = tournaments.find(t  => t.status === 'ongoing')
-  const myRank   = leaderboard.findIndex(u => u.user_id === session.user.id) + 1
-  const me       = leaderboard.find(u => u.user_id === session.user.id)
+  const standingsForView = liveStandings.length > 0 ? liveStandings : leaderboard
+  const myRank   = standingsForView.findIndex(u => u.user_id === session.user.id) + 1
+  const me       = standingsForView.find(u => u.user_id === session.user.id)
 
   if (loading) return <div className="loading-screen">Caricamento…</div>
 
@@ -118,7 +128,7 @@ export default function Dashboard({ session }) {
               {leaderboard.length === 0 && (
                 <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessun punto ancora. Forza!</p>
               )}
-              {(liveStandings.length > 0 ? liveStandings : leaderboard).map((u, i) => {
+              {standingsForView.map((u, i) => {
                 const isMe   = u.user_id === session.user.id
                 const medals = ['🥇', '🥈', '🥉']
                 const color  = colorMap[u.user_id]

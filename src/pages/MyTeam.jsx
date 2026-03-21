@@ -13,7 +13,6 @@ export default function MyTeam({ session }) {
   const [roster,   setRoster]   = useState([])
   const [allAtp,   setAllAtp]   = useState([])
   const [loading,  setLoading]  = useState(true)
-  const [credits,  setCredits]  = useState(0)
   const [pointsMap, setPointsMap] = useState({}) // atp_player_id → total_points
   const [totalPointsMap, setTotalPointsMap] = useState({})
   const [tableScheduledMap, setTableScheduledMap] = useState({})
@@ -21,8 +20,7 @@ export default function MyTeam({ session }) {
 
   useEffect(() => {
     async function load() {
-      const [{ data: profile }, { data: rosterData }, { data: atp }] = await Promise.all([
-        supabase.from('profiles').select('credits_remaining').eq('id', session.user.id).single(),
+      const [{ data: rosterData }, { data: atp }] = await Promise.all([
         supabase
           .from('roster_players')
           .select('*, atp_players(*)')
@@ -34,7 +32,6 @@ export default function MyTeam({ session }) {
           .order('ranking'),
       ])
 
-      setCredits(profile?.credits_remaining ?? 0)
       setRoster(rosterData ?? [])
       setAllAtp(atp ?? [])
 
@@ -88,19 +85,45 @@ export default function MyTeam({ session }) {
       // Controlla se c'è un torneo in corso
       const { data: ongoingTournament } = await supabase
         .from('tournaments')
-        .select('id')
+        .select('id, type')
         .eq('status', 'ongoing')
         .maybeSingle()
 
       if (ongoingTournament) {
-        // Punti totali live per TUTTI i giocatori (non solo schierati)
-        const { data: liveAllScores } = await supabase
-          .rpc('get_player_live_points', {
-            p_tournament_id: ongoingTournament.id
-          })
+        // Punti totali live per TUTTI i giocatori (stessa logica "Score giocatori" della pagina Torneo)
+        const { data: liveMatchResults } = await supabase
+          .from('match_players')
+          .select(`
+            atp_player_id, is_winner,
+            atp_players ( id, ranking ),
+            matches!inner ( tournament_id, status, round_name )
+          `)
+          .eq('matches.tournament_id', ongoingTournament.id)
+          .eq('matches.status', 'completed')
 
-        ;(liveAllScores ?? []).forEach(s => {
-          totalMap[s.atp_player_id] = (totalMap[s.atp_player_id] ?? 0) + (s.total_points ?? 0)
+        const liveWinsMap = {}
+        ;(liveMatchResults ?? []).forEach(mp => {
+          if (!mp.is_winner) return
+          const roundName = mp.matches?.round_name ?? ''
+          if (roundName.toLowerCase().includes('qualif')) return
+
+          const pid = mp.atp_player_id
+          if (!pid) return
+
+          if (!liveWinsMap[pid]) {
+            liveWinsMap[pid] = {
+              ranking: mp.atp_players?.ranking ?? 100,
+              wins: 0,
+            }
+          }
+          liveWinsMap[pid].wins++
+        })
+
+        const pointMult = ongoingTournament.type === 'slam' ? 2 : 1
+        Object.entries(liveWinsMap).forEach(([pid, entry]) => {
+          const multiplier = computeMultiplier(Math.min(entry.ranking, 100))
+          const liveTotalPoints = multiplier * pointMult * entry.wins
+          totalMap[Number(pid)] = (totalMap[Number(pid)] ?? 0) + liveTotalPoints
         })
 
         // Punti schierati live solo per l'utente corrente (include captain bonus)
@@ -199,7 +222,7 @@ export default function MyTeam({ session }) {
         <div>
           <h1 className="page-title display">La mia rosa</h1>
           <p className="page-subtitle">
-            {roster.length}/10 giocatori · {credits} crediti rimasti
+            {roster.length}/10 giocatori
             {totalRosterPoints > 0 && ` · ${totalRosterPoints} punti totali`}
           </p>
         </div>
@@ -263,10 +286,10 @@ export default function MyTeam({ session }) {
         </div>
       )}
 
-      {/* ── Top 100 ATP — Prezzi asta ── */}
+      {/* ── Top 100 ── */}
       <div style={{ marginTop: 40 }}>
         <h2 className="display" style={{ fontSize: 28, marginBottom: 16 }}>
-          Top 100 ATP — Prezzi asta
+          Top 100
         </h2>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <table className="atp-table">
