@@ -67,23 +67,19 @@ export default function MyTeam({ session }) {
         scheduledMap[pid] = (scheduledMap[pid] ?? 0) + (s.total_points ?? 0)
       })
 
-      // Punti totali da tornei completati (tutti gli utenti, senza captain bonus)
+      // Punti totali tabellari: solo da Miami in avanti e senza qualificazioni.
+      // Li calcoliamo sempre dai match reali, così evitiamo discrepanze del vecchio RPC.
       const totalMap = {}
-      ;(completedScores ?? []).forEach(s => {
-        const pid = s.picks?.atp_player_id
-        if (!pid) return
-        // base_points + win_bonus = total_points - captain_bonus
-        // Ma da tournament_scores non abbiamo i dettagli, usiamo total_points / 2 se capitano
-        // Quindi carichiamo con la funzione get_player_total_points
-      })
+      const { data: miamiTournament } = await supabase
+        .from('tournaments')
+        .select('start_date')
+        .ilike('name', '%miami%')
+        .order('start_date', { ascending: true })
+        .limit(1)
+        .maybeSingle()
 
-      const { data: totalScores } = await supabase.rpc('get_player_total_points')
-      ;(totalScores ?? []).forEach(s => {
-        totalMap[s.atp_player_id] = Number(s.total_points) ?? 0
-      })
+      const miamiStartDate = miamiTournament?.start_date ?? null
 
-      // Fallback: punti totali per tutti i giocatori (anche mai schierati).
-      // get_player_total_points può restituire solo giocatori presenti nelle picks.
       const { data: allMatchResults } = await supabase
         .from('match_players')
         .select(`
@@ -91,16 +87,17 @@ export default function MyTeam({ session }) {
           atp_players!inner ( id, ranking ),
           matches!inner (
             status, round_name,
-            tournaments!inner ( type )
+            tournaments!inner ( type, start_date )
           )
         `)
         .eq('matches.status', 'completed')
 
-      const computedTotals = {}
       ;(allMatchResults ?? []).forEach(mp => {
         if (!mp.is_winner) return
         const roundName = mp.matches?.round_name ?? ''
         if (roundName.toLowerCase().includes('qualif')) return
+        const tournamentStart = mp.matches?.tournaments?.start_date
+        if (miamiStartDate && tournamentStart && tournamentStart < miamiStartDate) return
 
         const pid = mp.atp_player_id
         const ranking = mp.atp_players?.ranking ?? 999
@@ -108,12 +105,7 @@ export default function MyTeam({ session }) {
         const isSlam = mp.matches?.tournaments?.type === 'slam'
         const pointMult = isSlam ? 2 : 1
         const pts = mult * pointMult
-        computedTotals[pid] = (computedTotals[pid] ?? 0) + pts
-      })
-
-      Object.entries(computedTotals).forEach(([pid, pts]) => {
-        const id = Number(pid)
-        if (totalMap[id] == null) totalMap[id] = pts
+        totalMap[pid] = (totalMap[pid] ?? 0) + pts
       })
 
       // Controlla se c'è un torneo in corso
@@ -124,7 +116,6 @@ export default function MyTeam({ session }) {
         .maybeSingle()
 
       if (ongoingTournament) {
-        // I punti totali tabellari sono già forniti da get_player_total_points.
         // Qui calcoliamo soltanto i punti "Da schierato" live.
         const { data: livePickedScores } = await supabase
           .rpc('compute_live_tournament_scores', {
