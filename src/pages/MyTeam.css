@@ -89,3 +89,16 @@
 .in-roster-dot { color: var(--accent); font-size: 10px; }
 
 .empty-state { color: var(--text); font-size: 15px; }
+
+@media (max-width: 600px) {
+  .atp-table th:nth-child(3),
+  .atp-table td:nth-child(3) { display: none; } /* Prezzo */
+
+  .atp-table th:nth-child(4),
+  .atp-table td:nth-child(4) { display: none; } /* Moltiplicatore */
+
+  .atp-table { font-size: 11px; }
+
+  .atp-table th,
+  .atp-table td { padding: 8px 8px; }
+}
