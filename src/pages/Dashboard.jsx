@@ -94,7 +94,20 @@ export default function Dashboard({ session }) {
       setAllRosters(Object.values(byUser))
       setLoading(false)
     }
+
     load()
+
+    const channel = supabase
+      .channel(`dashboard-live-${session.user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_players' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'roster_players' }, load)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [session.user.id])
 
   const upcoming = tournaments.filter(t => t.status === 'upcoming').slice(0, 3)
