@@ -132,10 +132,26 @@ export default function History({ session }) {
       winsMap[pid].wins++
     })
 
-    const pointMult = t.type === 'slam' ? 2 : 1
+    function getMultiplier(ranking) {
+      const r = Math.min(ranking ?? 100, 100)
+      const group = Math.floor((r - 1) / 5)
+      const pos = (r - 1) % 5
+      const base = 1 + group * 0.5
+      return pos === 4 ? base + 0.25 : base
+    }
+
+    const pm = t.type === 'slam' ? 1.5 : 1
+    const winBonus = t.type === 'slam' ? 20 : 10
+
     Object.values(winsMap).forEach(entry => {
-      const mult = Math.ceil(Math.min(entry.player?.ranking ?? 100, 100) / 5)
-      entry.points = mult * pointMult * entry.wins
+      const mult = getMultiplier(entry.player?.ranking ?? 100)
+      entry.points = Math.floor(mult * Math.pow(entry.wins, 2) * pm)
+    })
+
+    // Aggiungi bonus vittoria al vincitore (più vittorie = più turni = vincitore del torneo)
+    const maxWins = Math.max(...Object.values(winsMap).map(e => e.wins))
+    Object.values(winsMap).forEach(entry => {
+      if (entry.wins === maxWins) entry.points += winBonus
     })
 
     setPlayerScores(
