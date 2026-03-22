@@ -51,6 +51,21 @@ export default function Dashboard({ session }) {
         .maybeSingle()
 
       if (ongoingTournament) {
+        // Trigger an on-demand sync so live standings don't stay stale
+        // when scheduled jobs are delayed.
+        try {
+          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-tournament`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ tournament_id: ongoingTournament.id }),
+          })
+        } catch (e) {
+          console.warn('sync-tournament on-demand failed:', e)
+        }
+
         const { data: liveScores } = await supabase
           .rpc('compute_live_tournament_scores', {
             p_tournament_id: ongoingTournament.id
