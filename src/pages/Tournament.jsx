@@ -194,31 +194,64 @@ export default function Tournament({ session }) {
       .eq('matches.tournament_id', t.id)
       .eq('matches.status', 'completed')
 
-    // Count wins per player
+    const mainDrawMatches = (matchResults ?? []).filter(
+      mp => !(mp.matches?.round_name ?? '').toLowerCase().includes('qualif')
+    )
+    const maxRound = Math.max(...mainDrawMatches.map(mp => mp.matches?.round_number ?? 0), 0)
+
     const winsMap = {}
-    ;(matchResults ?? []).forEach(mp => {
-      if (!mp.is_winner) return
-      // Escludi qualificazioni
-      const roundName = mp.matches?.round_name ?? ''
-      if (roundName.toLowerCase().includes('qualif')) return
+    const firstRoundMap = {}
+
+    mainDrawMatches.forEach(mp => {
       const pid = mp.atp_player_id
+      const rn = mp.matches?.round_number ?? 0
+      if (!firstRoundMap[pid] || rn > firstRoundMap[pid]) {
+        firstRoundMap[pid] = rn
+      }
       if (!winsMap[pid]) winsMap[pid] = {
         player: mp.atp_players,
+        realWins: 0,
+        byes: 0,
         wins: 0,
         points: 0,
+        wonTournament: false,
       }
-      winsMap[pid].wins++
+      if (mp.is_winner && mp.matches?.status === 'completed') {
+        winsMap[pid].realWins++
+        if (rn === 1) winsMap[pid].wonTournament = true
+      }
     })
 
-    // Calculate points (multiplier from atp_players.ranking)
-    const pointMult = t.type === 'slam' ? 2 : 1
+    Object.keys(winsMap).forEach(pid => {
+      const firstRound = firstRoundMap[pid] ?? 0
+      const byes = (firstRound > 0 && firstRound < maxRound)
+        ? Math.round(Math.log2(maxRound / firstRound))
+        : 0
+      winsMap[pid].byes = byes
+      winsMap[pid].wins = winsMap[pid].realWins + byes
+    })
+
+    function getMultiplier(ranking) {
+      const r = Math.min(ranking ?? 100, 100)
+      const group = Math.floor((r - 1) / 5)
+      const pos = (r - 1) % 5
+      const base = 1 + group * 0.5
+      return pos === 4 ? base + 0.25 : base
+    }
+
+    const pm = t.type === 'slam' ? 1.5 : 1
+    const winBonus = t.type === 'slam' ? 20 : 10
+
     Object.values(winsMap).forEach(entry => {
-      const mult = Math.ceil(Math.min(entry.player.ranking, 100) / 5)
-      entry.points = mult * pointMult * entry.wins
+      const mult = getMultiplier(entry.player?.ranking ?? 100)
+      const base = Math.floor(mult * Math.pow(entry.wins, 2) * pm)
+      entry.points = base + (entry.wonTournament ? winBonus : 0)
     })
 
     setPlayerScores(
-      Object.values(winsMap).sort((a, b) => b.points - a.points)
+      Object.values(winsMap)
+        .filter(s => s.wins > 0)
+        .sort((a, b) => b.points - a.points)
     )
 
     setLoading(false)
