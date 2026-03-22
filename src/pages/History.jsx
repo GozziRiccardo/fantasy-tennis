@@ -118,18 +118,46 @@ export default function History({ session }) {
       .eq('matches.tournament_id', t.id)
       .eq('matches.status', 'completed')
 
+    // Calcola max round del main draw (escludendo qualificazioni)
+    const mainDrawMatches = (matchResults ?? []).filter(
+      mp => !(mp.matches?.round_name ?? '').toLowerCase().includes('qualif')
+    )
+    const maxRound = Math.max(...mainDrawMatches.map(mp => mp.matches?.round_number ?? 0), 0)
+
+    // Per ogni giocatore: vittorie reali e primo round giocato (per bye)
     const winsMap = {}
-    ;(matchResults ?? []).forEach(mp => {
-      if (!mp.is_winner) return
-      const roundName = mp.matches?.round_name ?? ''
-      if (roundName.toLowerCase().includes('qualif')) return
+    const firstRoundMap = {}
+
+    mainDrawMatches.forEach(mp => {
       const pid = mp.atp_player_id
+      const rn = mp.matches?.round_number ?? 0
+      // Traccia il primo round giocato (il più alto = più lontano dalla finale)
+      if (!firstRoundMap[pid] || rn > firstRoundMap[pid]) {
+        firstRoundMap[pid] = rn
+      }
       if (!winsMap[pid]) winsMap[pid] = {
         player: mp.atp_players,
+        realWins: 0,
+        byes: 0,
         wins: 0,
         points: 0,
+        wonTournament: false,
       }
-      winsMap[pid].wins++
+      if (mp.is_winner && mp.matches?.status === 'completed') {
+        winsMap[pid].realWins++
+        // Ha vinto la finale?
+        if (rn === 1) winsMap[pid].wonTournament = true
+      }
+    })
+
+    // Calcola bye per ogni giocatore
+    Object.keys(winsMap).forEach(pid => {
+      const firstRound = firstRoundMap[pid] ?? 0
+      const byes = (firstRound > 0 && firstRound < maxRound)
+        ? Math.round(Math.log2(maxRound / firstRound))
+        : 0
+      winsMap[pid].byes = byes
+      winsMap[pid].wins = winsMap[pid].realWins + byes
     })
 
     function getMultiplier(ranking) {
@@ -145,17 +173,14 @@ export default function History({ session }) {
 
     Object.values(winsMap).forEach(entry => {
       const mult = getMultiplier(entry.player?.ranking ?? 100)
-      entry.points = Math.floor(mult * Math.pow(entry.wins, 2) * pm)
-    })
-
-    // Aggiungi bonus vittoria al vincitore (più vittorie = più turni = vincitore del torneo)
-    const maxWins = Math.max(...Object.values(winsMap).map(e => e.wins))
-    Object.values(winsMap).forEach(entry => {
-      if (entry.wins === maxWins) entry.points += winBonus
+      const base = Math.floor(mult * Math.pow(entry.wins, 2) * pm)
+      entry.points = base + (entry.wonTournament ? winBonus : 0)
     })
 
     setPlayerScores(
-      Object.values(winsMap).sort((a, b) => b.points - a.points)
+      Object.values(winsMap)
+        .filter(s => s.wins > 0)
+        .sort((a, b) => b.points - a.points)
     )
 
     setDetailLoad(false)
