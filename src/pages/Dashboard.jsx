@@ -39,18 +39,17 @@ export default function Dashboard({ session }) {
           `)
           .order('atp_players(ranking)'),
       ])
-      setLeaderboard(lb ?? [])
       setTournaments(tv ?? [])
       setColorMap(await getUserColorMap(supabase))
 
-      // Controlla se c'è un torneo in corso
-      const { data: ongoingTournament } = await supabase
+      // Fetch live points from ongoing tournament
+      const { data: ongoingT } = await supabase
         .from('tournaments')
         .select('id')
         .eq('status', 'ongoing')
         .maybeSingle()
 
-      if (ongoingTournament) {
+      if (ongoingT) {
         // Trigger an on-demand sync so live standings don't stay stale
         // when scheduled jobs are delayed.
         try {
@@ -61,7 +60,7 @@ export default function Dashboard({ session }) {
               apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
               Authorization: `Bearer ${session.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
             },
-            body: JSON.stringify({ tournament_id: ongoingTournament.id }),
+            body: JSON.stringify({ tournament_id: ongoingT.id }),
           })
           if (!response.ok) {
             const details = await response.text()
@@ -73,33 +72,26 @@ export default function Dashboard({ session }) {
 
         const { data: liveScores } = await supabase
           .rpc('compute_live_tournament_scores', {
-            p_tournament_id: ongoingTournament.id
+            p_tournament_id: ongoingT.id
           })
 
-        // Deduplica eventuali righe duplicate per (user_id, atp_player_id)
-        const uniqueLiveByPick = {}
-        ;(liveScores ?? []).forEach(s => {
-          const key = `${s.user_id}-${s.atp_player_id}`
-          const pts = s.total_points ?? 0
-          uniqueLiveByPick[key] = Math.max(uniqueLiveByPick[key] ?? 0, pts)
-        })
-
-        // Somma punti live per user (base + captain + win_bonus = total_points)
+        // Sum live points per user
         const liveByUser = {}
-        Object.entries(uniqueLiveByPick).forEach(([key, pts]) => {
-          const userId = key.split('-')[0]
-          liveByUser[userId] = (liveByUser[userId] ?? 0) + pts
+        ;(liveScores ?? []).forEach(s => {
+          liveByUser[s.user_id] = (liveByUser[s.user_id] ?? 0) + (s.total_points ?? 0)
         })
 
-        // Combina con leaderboard esistente
-        const combined = (lb ?? []).map(u => ({
+        // Merge with leaderboard
+        const merged = (lb ?? []).map(u => ({
           ...u,
           total_points: (u.total_points ?? 0) + (liveByUser[u.user_id] ?? 0),
           live_points: liveByUser[u.user_id] ?? 0,
         })).sort((a, b) => b.total_points - a.total_points)
 
-        setLiveStandings(combined)
+        setLeaderboard(merged)
+        setLiveStandings(merged)
       } else {
+        setLeaderboard(lb ?? [])
         setLiveStandings(lb ?? [])
       }
 
@@ -185,7 +177,8 @@ export default function Dashboard({ session }) {
                           background: 'rgba(200,240,0,0.1)',
                           padding: '1px 6px',
                           borderRadius: '100px',
-                          marginLeft: 4
+                          marginLeft: 4,
+                          fontFamily: 'var(--font-mono)'
                         }}>
                           +{u.live_points} live
                         </span>
