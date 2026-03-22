@@ -6,7 +6,11 @@ import { getUserColorMap } from '../utils/userColors'
 import './MyTeam.css'
 
 function computeMultiplier(ranking) {
-  return Math.ceil(ranking / 5)
+  const r = Math.min(ranking ?? 100, 100)
+  const group = Math.floor((r - 1) / 5)
+  const pos = (r - 1) % 5
+  const base = 1 + group * 0.5
+  return pos === 4 ? base + 0.25 : base
 }
 
 export default function MyTeam({ session }) {
