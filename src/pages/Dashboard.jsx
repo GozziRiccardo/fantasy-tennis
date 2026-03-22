@@ -54,14 +54,19 @@ export default function Dashboard({ session }) {
         // Trigger an on-demand sync so live standings don't stay stale
         // when scheduled jobs are delayed.
         try {
-          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-tournament`, {
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-tournament`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${session.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
             },
             body: JSON.stringify({ tournament_id: ongoingTournament.id }),
           })
+          if (!response.ok) {
+            const details = await response.text()
+            throw new Error(`sync-tournament failed (${response.status}): ${details}`)
+          }
         } catch (e) {
           console.warn('sync-tournament on-demand failed:', e)
         }
@@ -123,7 +128,7 @@ export default function Dashboard({ session }) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [session.user.id])
+  }, [session.user.id, session.access_token])
 
   const upcoming = tournaments.filter(t => t.status === 'upcoming').slice(0, 3)
   const ongoing  = tournaments.find(t  => t.status === 'ongoing')
