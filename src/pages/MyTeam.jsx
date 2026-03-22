@@ -107,8 +107,8 @@ export default function MyTeam({ session }) {
         const allScheduledMap = {}
 
         ;(livePickedScores ?? []).forEach(s => {
-          // Tabella: somma base_points + win_bonus per tutti
-          const pts = (s.base_points ?? 0) + (s.win_bonus ?? 0)
+          // Tabella: somma total_points per tutti
+          const pts = s.total_points ?? 0
           allScheduledMap[s.atp_player_id] = (allScheduledMap[s.atp_player_id] ?? 0) + pts
 
           // Carte: solo utente corrente, con captain bonus
