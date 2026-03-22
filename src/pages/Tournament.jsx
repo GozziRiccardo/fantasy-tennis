@@ -385,28 +385,62 @@ export default function Tournament({ session }) {
           playerScores={playerScores}
           allPicks={allPicks}
           users={users}
+          liveScores={liveScores}
         />
       )}
     </div>
   )
 }
 
-function ScoresView({ playerScores, allPicks, users }) {
+function ScoresView({ playerScores, allPicks, users, liveScores }) {
   // Picked players with their scores
   const pickedPlayerIds = new Set(allPicks.map(p => p.atp_player_id))
-  const pickedScores = playerScores
-    .filter(s => pickedPlayerIds.has(s.player.id))
+  const pickedScores = (liveScores ?? [])
+    .filter(s => pickedPlayerIds.has(s.atp_player_id))
+    .map((s) => {
+      const pick = allPicks.find(p => p.user_id === s.user_id && p.atp_player_id === s.atp_player_id)
+      return {
+        ...s,
+        pick,
+        user: users.find(u => u.id === s.user_id),
+      }
+    })
+    .sort((a, b) => (b.total_points ?? 0) - (a.total_points ?? 0))
+
+  const playerById = {}
+  ;(playerScores ?? []).forEach((s) => {
+    if (!s?.player?.id) return
+    playerById[s.player.id] = { ...s }
+  })
+  ;(liveScores ?? []).forEach((s) => {
+    const pid = s.atp_player_id
+    const pick = allPicks.find(p => p.user_id === s.user_id && p.atp_player_id === pid)
+    if (!pid || !pick?.atp_players) return
+    const liveWins = s.rounds_won ?? 0
+    const livePoints = (s.base_points ?? 0) + (s.win_bonus ?? 0)
+    const existing = playerById[pid]
+    if (!existing) {
+      playerById[pid] = { player: pick.atp_players, wins: liveWins, points: livePoints }
+      return
+    }
+    playerById[pid] = {
+      ...existing,
+      wins: Math.max(existing.wins ?? 0, liveWins),
+      points: Math.max(existing.points ?? 0, livePoints),
+    }
+  })
+  const mergedPlayerScores = Object.values(playerById).sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
 
   return (
     <div className="scores-view">
       {/* All players */}
       <div className="scores-section">
         <div className="scores-section-title">Punti totali — tutti i giocatori</div>
-        {playerScores.length === 0 ? (
+        {mergedPlayerScores.length === 0 ? (
           <p style={{ color: 'var(--text2)', fontSize: 13 }}>Nessuna partita completata.</p>
         ) : (
           <div className="scores-list">
-            {playerScores.map((s, i) => (
+            {mergedPlayerScores.map((s, i) => (
               <div key={s.player.id} className="score-row">
                 <span className="score-rank mono">#{i + 1}</span>
                 <span className="score-name">{s.player.name}</span>
@@ -428,12 +462,12 @@ function ScoresView({ playerScores, allPicks, users }) {
         ) : (
           <div className="scores-list">
             {pickedScores.map((s, i) => {
-              const pick = allPicks.find(p => p.atp_player_id === s.player.id)
-              const user = users.find(u => u.id === pick?.user_id)
+              const pick = s.pick
+              const user = s.user
               return (
-                <div key={s.player.id} className="score-row">
+                <div key={`${s.user_id}-${s.atp_player_id}`} className="score-row">
                   <span className="score-rank mono">#{i + 1}</span>
-                  <span className="score-name">{s.player.name}</span>
+                  <span className="score-name">{pick?.atp_players?.name ?? 'Giocatore'}</span>
                   {user && (
                     <span className="score-owner" style={{
                       color: user.color.text,
@@ -446,7 +480,7 @@ function ScoresView({ playerScores, allPicks, users }) {
                       {pick?.is_captain ? '★ ' : ''}{user.username}
                     </span>
                   )}
-                  <span className="score-pts mono">{s.wins}V · +{s.points}pts</span>
+                  <span className="score-pts mono">{s.rounds_won ?? 0}V · +{s.total_points ?? 0}pts</span>
                 </div>
               )
             })}
