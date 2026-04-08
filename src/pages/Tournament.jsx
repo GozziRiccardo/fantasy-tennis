@@ -197,7 +197,10 @@ export default function Tournament({ session }) {
     const mainDrawMatches = (matchResults ?? []).filter(
       mp => !(mp.matches?.round_name ?? '').toLowerCase().includes('qualif')
     )
-    const maxRound = Math.max(...mainDrawMatches.map(mp => mp.matches?.round_number ?? 0), 0)
+    const tournamentRounds = mainDrawMatches
+      .map(mp => mp.matches?.round_number ?? 0)
+      .filter((v, i, arr) => arr.indexOf(v) === i)
+      .sort((a, b) => b - a)
 
     const winsMap = {}
     const firstRoundMap = {}
@@ -224,9 +227,9 @@ export default function Tournament({ session }) {
 
     Object.keys(winsMap).forEach(pid => {
       const firstRound = firstRoundMap[pid] ?? 0
-      const byes = (firstRound > 0 && firstRound < maxRound)
-        ? Math.round(Math.log2(maxRound / firstRound))
-        : 0
+      // Conta quanti round del main draw esistono DOPO il primo round giocato
+      // (stessa logica della funzione SQL get_player_byes)
+      const byes = tournamentRounds.filter(r => r > firstRound).length
       winsMap[pid].byes = byes
       winsMap[pid].wins = winsMap[pid].realWins + byes
     })
