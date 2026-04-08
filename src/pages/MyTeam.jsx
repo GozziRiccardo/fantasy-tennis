@@ -145,8 +145,11 @@ export default function MyTeam({ session }) {
           scheduledMap[Number(pid)] = (scheduledMap[Number(pid)] ?? 0) + pts
         })
 
-        // Tabella: usa solo l'aggregato di tutti gli utenti (senza captain bonus)
-        const nextTableScheduledMap = { ...allScheduledMap }
+        // Tabella: somma tornei completati + torneo in corso
+        const nextTableScheduledMap = { ...scheduledMap } // parte dai punti dei tornei completati
+        Object.entries(allScheduledMap).forEach(([pid, pts]) => {
+          nextTableScheduledMap[Number(pid)] = (nextTableScheduledMap[Number(pid)] ?? 0) + pts
+        })
         setTableScheduledMap(nextTableScheduledMap)
       }
       if (!ongoingTournament) setTableScheduledMap(scheduledMap)
