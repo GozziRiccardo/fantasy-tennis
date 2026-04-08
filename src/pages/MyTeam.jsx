@@ -168,9 +168,9 @@ export default function MyTeam({ session }) {
   const top100 = allAtp
     .filter(p => p.ranking <= 100)
     .sort((a, b) => a.ranking - b.ranking || a.name.localeCompare(b.name))
-    .slice(0, 100)
+  const top100Ids = new Set(top100.map(p => p.id))
   const outsideTop100 = allAtp
-    .filter(p => p.ranking > 100 && ownerMap[p.id])
+    .filter(p => p.ranking > 100 && ownerMap[p.id] && !top100Ids.has(p.id))
     .sort((a, b) => a.ranking - b.ranking)
 
   function renderPlayerRow(p) {
