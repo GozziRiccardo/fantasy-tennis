@@ -165,7 +165,10 @@ export default function MyTeam({ session }) {
   if (loading) return <div className="loading-screen">Caricamento…</div>
 
   const totalRosterPoints = roster.reduce((sum, r) => sum + (pointsMap[r.atp_player_id] ?? 0), 0)
-  const top100 = allAtp.filter(p => p.ranking <= 100)
+  const top100 = allAtp
+    .filter(p => p.ranking <= 100)
+    .sort((a, b) => a.ranking - b.ranking || a.name.localeCompare(b.name))
+    .slice(0, 100)
   const outsideTop100 = allAtp
     .filter(p => p.ranking > 100 && ownerMap[p.id])
     .sort((a, b) => a.ranking - b.ranking)
@@ -175,7 +178,7 @@ export default function MyTeam({ session }) {
     const scheduledPts = tableScheduledMap[p.id] ?? 0
     return (
       <tr key={p.id} className={ownerMap[p.id]?.isMe ? 'row-owned' : ''}>
-        <td className="mono">#{p.ranking}</td>
+        <td className="mono" style={{ color: 'var(--text3)', fontSize: 12 }}>#{p.ranking}</td>
         <td className="player-col">{p.name}</td>
         <td className="mono">×{computeMultiplier(p.ranking)}</td>
         <td>
