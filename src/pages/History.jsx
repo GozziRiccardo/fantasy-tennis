@@ -146,7 +146,7 @@ export default function History({ session }) {
       if (mp.is_winner && mp.matches?.status === 'completed') {
         winsMap[pid].realWins++
         // Ha vinto la finale?
-        if (rn === 1) winsMap[pid].wonTournament = true
+        if ((mp.matches?.round_name ?? '') === 'Final') winsMap[pid].wonTournament = true
       }
     })
 
