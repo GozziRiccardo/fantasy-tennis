@@ -80,20 +80,38 @@ export default function MyTeam({ session }) {
 
       const totalMap = {}
 
-      // Punti totali da tornei completati
+      // 1. Punti da picks schierate nei tornei completati (include captain bonus)
       const { data: totalScores } = await supabase.rpc('get_player_total_points')
+      const pickedPlayerIds = new Set()
       ;(totalScores ?? []).forEach(s => {
         totalMap[s.atp_player_id] = Number(s.total_points) ?? 0
+        pickedPlayerIds.add(s.atp_player_id)
       })
 
-      // Punti totali live dal torneo in corso (include bye, no captain)
+      // 2. Punti dai match per giocatori NON schierati nei tornei completati
+      const { data: completedTournaments } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('status', 'completed')
+        .gte('start_date', '2026-03-19')
+
+      for (const ct of completedTournaments ?? []) {
+        const { data: matchPts } = await supabase
+          .rpc('get_player_live_points', { p_tournament_id: ct.id })
+        ;(matchPts ?? []).forEach(s => {
+          // Solo per giocatori NON già contati tramite picks schierate
+          if (!pickedPlayerIds.has(s.atp_player_id)) {
+            totalMap[s.atp_player_id] = (totalMap[s.atp_player_id] ?? 0) + s.total_points
+          }
+        })
+      }
+
+      // 3. Punti live dal torneo in corso (tutti i giocatori, no captain bonus)
       if (ongoingTournament) {
         const { data: liveAllScores } = await supabase
-          .rpc('get_player_live_points', {
-            p_tournament_id: ongoingTournament.id
-          })
+          .rpc('get_player_live_points', { p_tournament_id: ongoingTournament.id })
         ;(liveAllScores ?? []).forEach(s => {
-          totalMap[s.atp_player_id] = (totalMap[s.atp_player_id] ?? 0) + (s.total_points ?? 0)
+          totalMap[s.atp_player_id] = (totalMap[s.atp_player_id] ?? 0) + s.total_points
         })
       }
 
