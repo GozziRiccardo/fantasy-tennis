@@ -62,12 +62,12 @@ export default function MyTeam({ session }) {
         .from('tournament_scores')
         .select(`total_points, picks ( atp_player_id, user_id, is_captain )`)
 
-      // Punti schierati da tornei completati (solo utente corrente)
+      // Punti da schierato = somma di tutti gli utenti (non solo l'utente corrente)
+      // La colonna mostra quanto ha reso quel giocatore in totale quando schierato da chiunque
       const scheduledMap = {}
       ;(completedScores ?? []).forEach(s => {
         const pid = s.picks?.atp_player_id
-        const uid = s.picks?.user_id
-        if (!pid || uid !== session.user.id) return
+        if (!pid) return
         scheduledMap[pid] = (scheduledMap[pid] ?? 0) + (s.total_points ?? 0)
       })
 
