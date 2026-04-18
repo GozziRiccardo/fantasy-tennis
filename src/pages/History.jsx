@@ -122,10 +122,18 @@ export default function History({ session }) {
     const mainDrawMatches = (matchResults ?? []).filter(
       mp => !(mp.matches?.round_name ?? '').toLowerCase().includes('qualif')
     )
-    const tournamentRounds = mainDrawMatches
-      .map(mp => mp.matches?.round_number ?? 0)
-      .filter((v, i, arr) => arr.indexOf(v) === i)
-      .sort((a, b) => b - a)
+    // Conta i round che vengono PRIMA del primo round giocato
+    // ordinando per numero di match (più match = turno più lontano dalla finale)
+    const roundMatchCounts = {}
+    mainDrawMatches.forEach(mp => {
+      const rn = mp.matches?.round_number ?? 0
+      if (rn > 0) roundMatchCounts[rn] = (roundMatchCounts[rn] ?? 0) + 1
+    })
+
+    // Ordina i round per numero di match decrescente (R128 prima, Finale ultima)
+    const sortedRounds = Object.keys(roundMatchCounts)
+      .map(Number)
+      .sort((a, b) => roundMatchCounts[b] - roundMatchCounts[a])
 
     // Per ogni giocatore: vittorie reali e primo round giocato (per bye)
     const winsMap = {}
@@ -153,12 +161,11 @@ export default function History({ session }) {
       }
     })
 
-    // Calcola bye per ogni giocatore
     Object.keys(winsMap).forEach(pid => {
       const firstRound = firstRoundMap[pid] ?? 0
-      // Conta quanti round del main draw esistono DOPO il primo round giocato
-      // (stessa logica della funzione SQL get_player_byes)
-      const byes = tournamentRounds.filter(r => r > firstRound).length
+      const playerRoundIndex = sortedRounds.indexOf(firstRound)
+      // Bye = quanti round vengono prima del primo round giocato
+      const byes = playerRoundIndex > 0 ? playerRoundIndex : 0
       winsMap[pid].byes = byes
       winsMap[pid].wins = winsMap[pid].realWins + byes
     })
