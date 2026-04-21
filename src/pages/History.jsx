@@ -136,15 +136,18 @@ export default function History({ session }) {
       .sort((a, b) => roundMatchCounts[b] - roundMatchCounts[a])
 
     // Per ogni giocatore: vittorie reali e primo round giocato (per bye)
+    // = round con più partite tra quelli in cui ha giocato
     const winsMap = {}
     const firstRoundMap = {}
 
     mainDrawMatches.forEach(mp => {
       const pid = mp.atp_player_id
       const rn = mp.matches?.round_number ?? 0
-      // Traccia il primo round giocato (il più alto = più lontano dalla finale)
-      if (!firstRoundMap[pid] || rn > firstRoundMap[pid]) {
-        firstRoundMap[pid] = rn
+      if (rn > 0) {
+        const currentFirst = firstRoundMap[pid]
+        if (!currentFirst || (roundMatchCounts[rn] ?? 0) > (roundMatchCounts[currentFirst] ?? 0)) {
+          firstRoundMap[pid] = rn
+        }
       }
       if (!winsMap[pid]) winsMap[pid] = {
         player: mp.atp_players,

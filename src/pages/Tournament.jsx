@@ -210,14 +210,18 @@ export default function Tournament({ session }) {
       .map(Number)
       .sort((a, b) => roundMatchCounts[b] - roundMatchCounts[a])
 
+    // Per ogni giocatore: primo round giocato = round con più partite tra quelli giocati
     const winsMap = {}
     const firstRoundMap = {}
 
     mainDrawMatches.forEach(mp => {
       const pid = mp.atp_player_id
       const rn = mp.matches?.round_number ?? 0
-      if (!firstRoundMap[pid] || rn > firstRoundMap[pid]) {
-        firstRoundMap[pid] = rn
+      if (rn > 0) {
+        const currentFirst = firstRoundMap[pid]
+        if (!currentFirst || (roundMatchCounts[rn] ?? 0) > (roundMatchCounts[currentFirst] ?? 0)) {
+          firstRoundMap[pid] = rn
+        }
       }
       if (!winsMap[pid]) winsMap[pid] = {
         player: mp.atp_players,
