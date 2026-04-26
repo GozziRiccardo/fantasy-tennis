@@ -1,5 +1,3 @@
-// src/pages/MyTeam.jsx — aggiornato con punti totali per giocatore
-
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { getUserColorMap } from '../utils/userColors'
@@ -17,9 +15,6 @@ export default function MyTeam({ session }) {
   const [roster,   setRoster]   = useState([])
   const [allAtp,   setAllAtp]   = useState([])
   const [loading,  setLoading]  = useState(true)
-  const [pointsMap, setPointsMap] = useState({}) // atp_player_id → total_points
-  const [totalPointsMap, setTotalPointsMap] = useState({})
-  const [tableScheduledMap, setTableScheduledMap] = useState({})
   const [ownerMap, setOwnerMap] = useState({})
 
   useEffect(() => {
@@ -57,87 +52,6 @@ export default function MyTeam({ session }) {
       })
       setOwnerMap(nextOwnerMap)
 
-      // Carica punti da tornei completati
-      const { data: completedScores } = await supabase
-        .from('tournament_scores')
-        .select(`total_points, picks ( atp_player_id, user_id, is_captain )`)
-
-      // Punti da schierato = somma di tutti gli utenti (non solo l'utente corrente)
-      // La colonna mostra quanto ha reso quel giocatore in totale quando schierato da chiunque
-      const scheduledMap = {}
-      ;(completedScores ?? []).forEach(s => {
-        const pid = s.picks?.atp_player_id
-        if (!pid) return
-        scheduledMap[pid] = (scheduledMap[pid] ?? 0) + (s.total_points ?? 0)
-      })
-
-      // Controlla se c'è un torneo in corso
-      const { data: ongoingTournament } = await supabase
-        .from('tournaments')
-        .select('id, type')
-        .eq('status', 'ongoing')
-        .maybeSingle()
-
-      const totalMap = {}
-
-      // Punti totali = punti puri dai match senza captain bonus
-      // Usiamo get_player_live_points per tutti i tornei (completati + in corso)
-      const { data: allTournaments } = await supabase
-        .from('tournaments')
-        .select('id')
-        .in('status', ['completed', 'ongoing'])
-        .gte('start_date', '2026-03-19')
-
-      for (const t of allTournaments ?? []) {
-        const { data: matchPts } = await supabase
-          .rpc('get_player_live_points', { p_tournament_id: t.id })
-        ;(matchPts ?? []).forEach(s => {
-          totalMap[s.atp_player_id] = (totalMap[s.atp_player_id] ?? 0) + s.total_points
-        })
-      }
-
-      if (ongoingTournament) {
-        // Qui calcoliamo soltanto i punti "Da schierato" live.
-        const { data: livePickedScores } = await supabase
-          .rpc('compute_live_tournament_scores', {
-            p_tournament_id: ongoingTournament.id
-          })
-
-        // Map per le CARTE (solo utente corrente, con captain bonus incluso)
-        const myLiveMap = {}
-
-        // Map per la TABELLA (tutti gli utenti sommati, senza captain bonus)
-        const allScheduledMap = {}
-
-        ;(livePickedScores ?? []).forEach(s => {
-          // Tabella: usa base_points + win_bonus (NO captain bonus per evitare doppio conteggio)
-          const pts = (s.base_points ?? 0) + (s.win_bonus ?? 0)
-          allScheduledMap[s.atp_player_id] = (allScheduledMap[s.atp_player_id] ?? 0) + pts
-
-          // Carte: solo utente corrente, con captain bonus
-          if (s.user_id === session.user.id) {
-            const myPts = (s.total_points ?? 0)
-            myLiveMap[s.atp_player_id] = (myLiveMap[s.atp_player_id] ?? 0) + myPts
-          }
-        })
-
-        // Aggiorna scheduledMap per le carte (solo miei punti con captain)
-        Object.entries(myLiveMap).forEach(([pid, pts]) => {
-          scheduledMap[Number(pid)] = (scheduledMap[Number(pid)] ?? 0) + pts
-        })
-
-        // Tabella: somma tornei completati + torneo in corso
-        const nextTableScheduledMap = { ...scheduledMap } // parte dai punti dei tornei completati
-        Object.entries(allScheduledMap).forEach(([pid, pts]) => {
-          nextTableScheduledMap[Number(pid)] = (nextTableScheduledMap[Number(pid)] ?? 0) + pts
-        })
-        setTableScheduledMap(nextTableScheduledMap)
-      }
-      if (!ongoingTournament) setTableScheduledMap(scheduledMap)
-
-      setPointsMap(scheduledMap)
-      setTotalPointsMap(totalMap)
-
       setLoading(false)
     }
     load()
@@ -145,7 +59,6 @@ export default function MyTeam({ session }) {
 
   if (loading) return <div className="loading-screen">Caricamento…</div>
 
-  const totalRosterPoints = roster.reduce((sum, r) => sum + (pointsMap[r.atp_player_id] ?? 0), 0)
   const top100 = allAtp
     .filter(p => p.ranking <= 100)
     .sort((a, b) => a.ranking - b.ranking || a.name.localeCompare(b.name))
@@ -155,8 +68,6 @@ export default function MyTeam({ session }) {
     .sort((a, b) => a.ranking - b.ranking)
 
   function renderPlayerRow(p) {
-    const totalPts = totalPointsMap[p.id] ?? 0
-    const scheduledPts = tableScheduledMap[p.id] ?? 0
     return (
       <tr key={p.id} className={ownerMap[p.id]?.isMe ? 'row-owned' : ''}>
         <td className="mono" style={{ color: 'var(--text3)', fontSize: 12 }}>#{p.ranking}</td>
@@ -180,12 +91,6 @@ export default function MyTeam({ session }) {
             </span>
           ) : null}
         </td>
-        <td className="mono" style={{ color: totalPts > 0 ? 'var(--accent)' : 'var(--text3)' }}>
-          {totalPts > 0 ? `+${totalPts}` : '—'}
-        </td>
-        <td className="mono" style={{ color: scheduledPts > 0 ? 'var(--text2)' : 'var(--text3)' }}>
-          {scheduledPts > 0 ? `+${scheduledPts}` : '—'}
-        </td>
       </tr>
     )
   }
@@ -197,7 +102,6 @@ export default function MyTeam({ session }) {
           <h1 className="page-title display">La mia rosa</h1>
           <p className="page-subtitle">
             {roster.length}/10 giocatori
-            {totalRosterPoints > 0 && ` · ${totalRosterPoints} punti totali`}
           </p>
         </div>
       </header>
@@ -228,31 +132,6 @@ export default function MyTeam({ session }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="price-paid mono">{r.price_paid} crediti</span>
                   </div>
-                  {(() => {
-                    const totalSchierato = pointsMap[p.id] ?? 0
-                    const totalPts = totalPointsMap[p.id] ?? 0
-
-                    return (
-                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                            Da schierato
-                          </span>
-                          <span className="mono" style={{ color: totalSchierato > 0 ? 'var(--accent)' : 'var(--text3)', fontSize: 12, fontWeight: 500 }}>
-                            {totalSchierato > 0 ? `+${totalSchierato}` : '—'}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                            Totali
-                          </span>
-                          <span className="mono" style={{ color: totalPts > 0 ? 'var(--text2)' : 'var(--text3)', fontSize: 12 }}>
-                            {totalPts > 0 ? `+${totalPts}` : '—'}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })()}
                 </div>
               </div>
             )
@@ -273,8 +152,6 @@ export default function MyTeam({ session }) {
                 <th>Giocatore</th>
                 <th>Molt.</th>
                 <th>In rosa</th>
-                <th>Punti totali</th>
-                <th>Da schierato</th>
               </tr>
             </thead>
             <tbody>
@@ -282,7 +159,7 @@ export default function MyTeam({ session }) {
               {outsideTop100.length > 0 && (
                 <>
                   <tr>
-                    <td colSpan={6} style={{
+                    <td colSpan={4} style={{
                       padding: '8px 20px',
                       fontSize: 11,
                       color: 'var(--text3)',
