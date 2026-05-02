@@ -233,7 +233,7 @@ export default function Tournament({ session }) {
       }
       if (mp.is_winner && mp.matches?.status === 'completed') {
         winsMap[pid].realWins++
-        if (rn === 1) winsMap[pid].wonTournament = true
+        if ((mp.matches?.round_name ?? '') === 'Final') winsMap[pid].wonTournament = true
       }
     })
 
